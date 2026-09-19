@@ -2062,3 +2062,106 @@ DP2/DP3 design continuity additionally requires:
 25. Global launch localization does not depend on an online LLM.
 26. The accepted stack preserves the single Rust rules engine across client/server validation.
 27. The economic ledger is auditable from initial implementation.
+
+
+---
+
+# PART XXX — REAL ESTATE, SYSTEM OWNERSHIP AND ECONOMIC AUTHORITIES
+
+## 44. Real-estate domain foundation
+
+Real estate is represented through the same shared asset/economic primitives as other GRIDWORKS systems.
+
+Initial domain entities should include:
+
+- LandParcel;
+- Building;
+- PropertyOwnership;
+- PropertyListing;
+- Lease;
+- Occupancy;
+- RenovationJob;
+- PropertyCondition;
+- PropertyValuation.
+
+Initial property classes:
+
+- industrial land;
+- warehouse;
+- factory/industrial building;
+- office;
+- basic residential property.
+
+Later seasons may add richer residential, mixed-use, interior-design, conversion, hospitality/retail and advanced portfolio systems without changing the core ownership model.
+
+### 44.1 GRIDWORKS system principal
+
+Ownership must support a non-player system principal displayed to players as **GRIDWORKS**.
+
+GRIDWORKS-owned property/business assets may have:
+
+- fixed purchase price;
+- lease terms;
+- unavailable/reserved state;
+- future-season release state.
+
+Player-owned assets support owner identity, contact and negotiated offers.
+
+### 44.2 Non-political authorities
+
+Taxes/fees may be attributed to service abstractions such as Local Authority or Port Authority, but these entities have no political gameplay or governance mechanics.
+
+Authority income is ledgered to non-player treasury principals.
+
+### 44.3 Treasury recirculation
+
+Treasury balances may fund bounded system actions, including:
+
+- GRIDWORKS asset purchases;
+- business/property buyback offers;
+- system procurement;
+- community projects;
+- infrastructure funding;
+- liquidity/recovery mechanisms.
+
+All such flows must use the same economic ledger and be operator-auditable.
+
+---
+
+# PART XXXI — STARTING PATHS AND BUSINESS SUSPENSION
+
+## 45. Starting-path selection
+
+The common introductory lesson teaches the GRIDWORKS reasoning model, after which a player selects a preferred starting path.
+
+The selected path controls the first economic scenario but does not lock later progression.
+
+Candidate paths:
+
+- Mining / Quarrying;
+- Agriculture;
+- Manufacturing;
+- Energy;
+- Logistics;
+- Real Estate;
+- Finance / Markets;
+- Generalist / Surprise Me.
+
+### 45.1 No forced operation
+
+Any owned business may support lifecycle states including:
+
+- Active;
+- Mothballed/Suspended;
+- Listed for Sale;
+- Sold;
+- Lease/Managed by Other later;
+- Dismantled/Repurposed where applicable.
+
+Mothballing stops normal production and materially reduces variable operating costs while preserving appropriate fixed holding/maintenance costs.
+
+### 45.2 Early correction path
+
+A bounded starter-business buyback/switch mechanism may let a new player change direction without account reset.
+
+It must be limited and abuse-resistant.
