@@ -1214,3 +1214,72 @@ WP-001 is repository-only unless the owner separately authorizes host work.
 It should create the monorepo skeleton and engineering conventions necessary for later work, but it must not implement substantive game systems prematurely.
 
 DP3/ADR completion itself does **not** authorize Engineering to start WP-001.
+
+
+---
+
+# PART XXVIII — ADR-006 / ADR-007 INTEGRATION
+
+## 29. Additional accepted architecture decisions
+
+6. `docs/decisions/ADR-006_GRIDWORKS_OWNED_ASSETS_AND_TREASURY.md`
+   - no political-government gameplay;
+   - neutral operational authorities only;
+   - GRIDWORKS-owned system inventory;
+   - treasury/authority ledgers;
+   - bounded value recirculation and GRIDWORKS buyback offers.
+
+7. `docs/decisions/ADR-007_REAL_ESTATE_AND_STARTING_PATHS.md`
+   - real estate is a launch architecture domain;
+   - WP-001 must scaffold land/property concepts;
+   - future-season GRIDWORKS-owned property may be visible but unavailable;
+   - starter-path selection is required;
+   - players are never forced to operate unwanted businesses.
+
+## 29.1 Domain additions
+
+Add to the DP3 domain map:
+
+22. Real Estate / Land / Property
+23. Non-Player Treasury / Authority Ledgers
+24. Starter Path / Onboarding Selection
+
+## 29.2 Persistence additions
+
+PostgreSQL foundation must reserve/support table families for:
+
+- land_parcels;
+- buildings;
+- property_ownership;
+- property_listings;
+- leases;
+- occupancy;
+- renovation_jobs;
+- authority_principals;
+- treasury_accounts;
+- treasury_transactions;
+- system_purchase_offers;
+- starter_path_selection;
+- business_operating_state.
+
+Exact schemas remain WP-owned, but WP-001 scaffolding must acknowledge these domains.
+
+## 29.3 Work-package ledger amendment
+
+WP-001 scope now explicitly includes repository/domain scaffolding for:
+
+- real estate / land / property;
+- GRIDWORKS system-principal ownership;
+- non-player treasury ledgers;
+- starter-path selection;
+- business operating-state model (active/mothballed/listed/etc.).
+
+WP-001 does **not** implement the full real-estate simulation.
+
+A later work package should implement the Season-1 real-estate baseline after the core vertical slice is proven, while preserving the already-defined domain contracts.
+
+## 29.4 Gate update
+
+G2 WP-001 issue readiness additionally requires the work order to name ADR-006 and ADR-007 as controlling references.
+
+Engineering may not omit these domains from the repository foundation simply because full gameplay arrives later.
