@@ -2165,3 +2165,64 @@ Mothballing stops normal production and materially reduces variable operating co
 A bounded starter-business buyback/switch mechanism may let a new player change direction without account reset.
 
 It must be limited and abuse-resistant.
+
+
+### 44.4 GRIDWORKS liquidity acquisition and resale
+
+Eligible player-owned businesses/properties may be sold directly to GRIDWORKS as a buyer of last resort when no acceptable player purchaser exists.
+
+Required domain state:
+
+- SystemPurchaseOffer;
+- SystemAcquisition;
+- SystemInventoryAsset;
+- SystemResaleListing;
+- CarryingCostLedger;
+- PriorOwnerReference;
+- ValuationSnapshot;
+- ReacquisitionEligibility;
+- ReacquisitionPriceFloor.
+
+The GRIDWORKS acquisition offer is derived from a server-authoritative valuation model and settles immediately through the normal economic ledger if accepted.
+
+The acquired asset preserves:
+
+- ownership lineage;
+- condition;
+- installed equipment;
+- operating history;
+- maintenance history;
+- financial history;
+- contracts where legally/game-mechanically transferred;
+- manager/employment relationships where included in the transaction.
+
+GRIDWORKS normally relists the asset.
+
+Normal resale floor:
+
+> acquisition cost + applicable carrying/transaction costs
+
+Former-owner reacquisition floor:
+
+> max(current GRIDWORKS listing price, acquisition price × 1.20, acquisition price + carrying/transaction costs)
+
+The 20% premium is an initial balance value and must be data-driven/versioned rather than hard-coded into business logic.
+
+Scarcity may increase GRIDWORKS listing prices when equivalent inventory is unavailable. Scarcity rules must apply consistently to all buyers and be operator-auditable.
+
+### 44.5 Anti-arbitrage requirements
+
+The system must prevent repeated sale/reacquisition loops from acting as free financing or guaranteed arbitrage.
+
+Controls may include:
+
+- cooldowns;
+- repeated-cycle limits;
+- related-account checks;
+- valuation haircuts;
+- carrying costs;
+- treasury liquidity constraints;
+- full sale/reacquisition history;
+- anomaly detection.
+
+The design goal is **reliable exit liquidity, not risk-free temporary financing**.
