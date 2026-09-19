@@ -1067,3 +1067,150 @@ DP3 is architecture-complete when:
 12. unresolved items are isolated into ADRs/work packages rather than hidden in implementation.
 
 DP3 does not authorize engineering implementation by itself. Each work package requires explicit issuance/authorization under the repository collaboration process.
+
+
+---
+
+# PART XXIV — ACCEPTED ADR REGISTER
+
+## 25. Accepted architecture decisions
+
+The following ADRs are controlling for DP3 and all engineering work packages:
+
+1. `docs/decisions/ADR-001_GODOT_RUST_INTEGRATION.md`
+   - Godot integrates the canonical Rust simulation through GDExtension;
+   - coarse-grained, versioned FFI;
+   - no simulation duplication in GDScript/Go.
+
+2. `docs/decisions/ADR-002_IDENTITY_AND_ACCOUNT_LINKING.md`
+   - server-issued guest-first identity;
+   - later account protection/linking;
+   - immutable player continuity through account linking.
+
+3. `docs/decisions/ADR-003_SCHEMA_AND_SERIALIZATION.md`
+   - repository-owned canonical schema catalogue;
+   - JSON external API;
+   - generated cross-language contracts;
+   - compact binary encoding only where justified;
+   - versioned event/snapshot/replay envelopes.
+
+4. `docs/decisions/ADR-004_CONTENT_RULES_DISTRIBUTION.md`
+   - versioned signed rules/content/localization bundles;
+   - server-issued authoritative manifests;
+   - independently deployable localization where semantic compatibility permits.
+
+5. `docs/decisions/ADR-005_INITIAL_SERVER_TOPOLOGY.md`
+   - initial native process set: API, worker, realtime, simulation validator boundary;
+   - PostgreSQL + NATS + S3-compatible storage;
+   - no Valkey/search cluster until measured need;
+   - no container runtime on the target estate.
+
+Engineering may not replace these decisions inside a work package. If implementation reveals a concrete blocker, Engineering must stop that decision path, document evidence, and request an ADR amendment from Architecture.
+
+---
+
+# PART XXV — DP3 GATE SEQUENCE
+
+## 26. Architecture-to-engineering gates
+
+### G0 — Product/design baseline
+PASS when:
+- Product Philosophy baseline exists;
+- DP2 core systems specification exists;
+- DP3 architecture exists.
+
+**Current status:** PASS.
+
+### G1 — Architecture decision closure
+PASS when:
+- client/simulation integration is decided;
+- identity/account-linking is decided;
+- schemas/serialization are decided;
+- content/rules distribution is decided;
+- initial server topology is decided.
+
+**Current status:** PASS via ADR-001..ADR-005.
+
+### G2 — WP-001 issue readiness
+PASS when Architecture publishes a bounded WP-001 engineering work order containing:
+- exact parent SHA;
+- allowed paths;
+- prohibited actions;
+- required repository layout;
+- build/test gates;
+- native-runtime constraints;
+- evidence/handback format.
+
+**Current status:** NOT YET ISSUED.
+
+### G3 — Repository foundation acceptance
+WP-001 must PASS Architecture review before WP-002+ implementation branches are authorized.
+
+### G4 — Simulation kernel acceptance
+WP-002 must prove:
+- deterministic command execution;
+- versioned snapshot/command schema;
+- seeded RNG;
+- no wall-clock/network/database dependency;
+- repeatable digest tests.
+
+### G5 — Vertical-slice foundation
+WP-003..WP-010 converge before WP-011 is authorized as an integrated vertical slice.
+
+### G6 — Product-loop proof
+WP-011 must demonstrate:
+
+> inspect → diagnose → intervene → partial production → economic settlement → second decision
+
+without violating the fair-play or authority invariants.
+
+No broad industry expansion is authorized before this loop is accepted.
+
+---
+
+# PART XXVI — WP ROUTING REFINEMENT
+
+## 27. Model routing rules
+
+Use model capability according to uncertainty rather than work-package importance alone.
+
+### Luna XHigh
+Default implementation worker when:
+- architecture is already decided;
+- acceptance criteria are explicit;
+- work is bounded;
+- failure mode is normal engineering/debugging.
+
+### Luna Max
+Use when:
+- investigation is genuinely required;
+- multiple implementation approaches must be tested;
+- FFI/platform behavior is uncertain;
+- procedural-generation properties require exploration;
+- localization/RTL/font behavior needs empirical validation;
+- challenge replay/determinism behavior is non-convergent.
+
+### Sol / Sol Pro / highest available architecture reviewer
+Use for:
+- architecture;
+- ADR changes;
+- cross-domain design;
+- security/economic invariant review;
+- work-order authoring;
+- acceptance/rejection of engineering handbacks.
+
+Engineering must not silently escalate unresolved architecture into code because a stronger implementation model is available.
+
+---
+
+# PART XXVII — NEXT AUTHORIZED DESIGN ACTION
+
+## 28. Next Architecture task
+
+The next design action after DP3/ADR closure is to author **WP-001 — Repository and Native Runtime Baseline** as a detailed GitHub work order.
+
+WP-001 is repository-only unless the owner separately authorizes host work.
+
+It should create the monorepo skeleton and engineering conventions necessary for later work, but it must not implement substantive game systems prematurely.
+
+DP3/ADR completion itself does **not** authorize Engineering to start WP-001.
