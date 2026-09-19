@@ -1332,3 +1332,33 @@ WP-001 must scaffold the domain boundaries and schema locations for:
 WP-006 ledger work must support GRIDWORKS/system-principal purchases and resale accounting.
 
 WP-017 sale/acquisition transfer must implement the actual transfer and reacquisition invariants.
+
+
+---
+
+# PART XXX — ADR-008 TIME MODEL INTEGRATION
+
+## 31. Accepted time architecture
+
+8. `docs/decisions/ADR-008_WORLD_TIME_SEASONS_AND_TIMERS.md`
+   - 1 in-game day = 1 real hour baseline;
+   - separate authoritative real time, operational simulation time and regional climate calendar;
+   - regional real-calendar-linked seasonality;
+   - offline-safe deterministic progression;
+   - no paid productive timer bypass;
+   - Release terminology for feature expansions.
+
+## 31.1 Engineering implications
+
+WP-001 must scaffold configuration/schema locations for:
+
+- time-ratio/rules version;
+- authoritative timestamp contracts;
+- regional climate profile identifiers;
+- timed-job configuration;
+- offline-safe policy flags/limits;
+- Release/version terminology in content manifests.
+
+WP-002 simulation kernel must not read device wall time directly.
+
+WP-011 vertical slice must prove at least one timed operational transition and deterministic offline catch-up path using server-authoritative elapsed time.
