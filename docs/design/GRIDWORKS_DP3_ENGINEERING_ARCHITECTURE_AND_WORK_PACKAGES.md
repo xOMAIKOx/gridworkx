@@ -1283,3 +1283,52 @@ A later work package should implement the Season-1 real-estate baseline after th
 G2 WP-001 issue readiness additionally requires the work order to name ADR-006 and ADR-007 as controlling references.
 
 Engineering may not omit these domains from the repository foundation simply because full gameplay arrives later.
+
+
+---
+
+# PART XXIX — GRIDWORKS LIQUIDITY FACILITY
+
+## 30. Buyer-of-last-resort architecture
+
+ADR-006 now defines GRIDWORKS as a buyer of last resort for eligible player-owned businesses and properties.
+
+Engineering architecture must therefore support:
+
+- system valuation of eligible assets;
+- immediate GRIDWORKS purchase settlement;
+- transfer to GRIDWORKS system ownership;
+- preservation of full asset/business history;
+- dynamic GRIDWORKS resale pricing;
+- acquisition-cost floor accounting;
+- carrying-cost accumulation;
+- original-owner reacquisition detection;
+- minimum original-owner reacquisition premium (initially 20% over GRIDWORKS acquisition cost, subject to the higher live listing price/carrying-cost floor);
+- scarcity-aware listing price changes;
+- anti-circular-sale and anti-arbitrage controls;
+- treasury liquidity/accounting;
+- complete price/ownership audit history.
+
+### 30.1 Pricing invariants
+
+Normal GRIDWORKS resale price must not intentionally fall below GRIDWORKS acquisition cost plus applicable carrying/transaction costs except through an explicitly authorized economy intervention.
+
+Former owners do not receive a preferential reacquisition discount.
+
+If comparable inventory is unavailable, scarcity may increase the listing price for all buyers.
+
+### 30.2 Work-package impact
+
+WP-001 must scaffold the domain boundaries and schema locations for:
+
+- valuation policy;
+- system purchase offer;
+- GRIDWORKS inventory ownership;
+- resale listing;
+- carrying cost;
+- reacquisition rule;
+- treasury settlement.
+
+WP-006 ledger work must support GRIDWORKS/system-principal purchases and resale accounting.
+
+WP-017 sale/acquisition transfer must implement the actual transfer and reacquisition invariants.
