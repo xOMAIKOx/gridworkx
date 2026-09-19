@@ -2069,3 +2069,43 @@ A business the player does not want to operate may be:
 - dismantled/repurposed where appropriate.
 
 The game should make it clear that the starting business is only the player's first foothold in the world, not their permanent identity.
+
+
+### 35.1 GRIDWORKS buyer-of-last-resort liquidity
+
+For eligible businesses and properties, GRIDWORKS acts as a **buyer of last resort** when the player wants liquidity and no acceptable player buyer exists.
+
+This is not intended to maximize the seller's price. It provides certainty and lets the player redeploy capital into another opportunity or profession.
+
+GRIDWORKS purchase price should be based on an auditable system valuation using factors such as:
+
+- recent comparable transactions;
+- asset condition;
+- trailing operating performance where relevant;
+- included inventory/working capital;
+- liabilities/encumbrances;
+- regional demand;
+- market depth/liquidity;
+- replacement/redevelopment value.
+
+The system price should normally be below expected open-market value so a player who can wait still has reason to seek a player buyer.
+
+After purchase:
+
+- GRIDWORKS becomes the visible owner;
+- the asset's full operating/maintenance/ownership history remains intact;
+- GRIDWORKS normally relists it for sale;
+- asking price may change with market conditions and scarcity;
+- normal resale price must not intentionally fall below GRIDWORKS acquisition cost plus applicable carrying/transaction costs, except through a deliberate economy intervention.
+
+A former owner may later buy the same asset back if GRIDWORKS still owns it.
+
+The initial reacquisition rule is:
+
+> **Former-owner purchase price = the highest of the current GRIDWORKS asking price, GRIDWORKS acquisition price + 20%, or acquisition price + accumulated carrying costs.**
+
+The 20% is an initial minimum premium and remains balanceable.
+
+If comparable alternatives are unavailable, scarcity may push the price higher for every buyer. The former owner receives no hidden discount simply because they previously owned the asset.
+
+This prevents GRIDWORKS from becoming a free short-term lender or asset-parking service while still giving players a reliable way to raise capital by exiting a business.
