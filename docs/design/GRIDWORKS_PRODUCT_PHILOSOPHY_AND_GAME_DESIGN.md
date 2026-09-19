@@ -1787,3 +1787,178 @@ If that loop is not satisfying, adding thirty industries will not save the game.
 > **GRIDWORKS is a persistent cooperative world economy where players restore and build interconnected systems by diagnosing problems, producing resources, trading, investing, transporting, engineering and collaborating. The world rewards understanding and efficient operation rather than destructive PvP or spending power. Players can specialize in physical industries or finance, compete through transparent operational and financial metrics, and participate fully without paying for superior power.**
 
 This statement, together with the design invariants above, is the current controlling product intent.
+
+
+---
+
+## 31. Business lifecycle, acquisition and turnaround gameplay
+
+GRIDWORKS must support business creation, improvement, sale, acquisition and persistent ownership history as first-class gameplay.
+
+A player who has restored and optimized one facility must not be forced into a rinse-and-repeat copy of the same starting puzzle. After selling a successful operation, the player may choose among:
+
+- **Greenfield development** — build a new operation from an undeveloped site;
+- **Going-concern acquisition** — buy an operating business with known cash flow and identifiable optimization opportunities;
+- **Turnaround acquisition** — acquire a distressed or barely functioning business with uncertain condition and potentially high upside.
+
+Turnaround gameplay is a legitimate specialization in its own right:
+
+> **Buy broken businesses → diagnose them → repair/restructure them → improve profitability and capital efficiency → retain or sell.**
+
+Procedurally generated opportunities must be generated from a coherent operating history, not by randomly coloring components red. Example histories may include deferred maintenance, over-aggressive throughput, inadequate capital investment, utility constraints, poor logistics design, excessive leverage, weak management or a recent incident. The resulting facility state must be derivable from the same causal rules used for player-operated assets.
+
+Acquisition should include imperfect but fair due diligence. Skill, managers and specialist expertise may improve what the player can infer before purchase.
+
+Businesses sold by players should persist in the world with their facility configuration, asset history, maintenance record, applicable contracts, managers if included, ownership lineage and operating history.
+
+Later transaction structures may include:
+
+- asset sale;
+- operating-business sale;
+- full company acquisition;
+- majority/minority stake;
+- JV;
+- restructuring/insolvency sale.
+
+The Opportunity Board should combine system-generated and player-listed opportunities. Infinite free rerolling of generated opportunities is prohibited because it would allow players to cherry-pick favorable seeds without economic cost.
+
+---
+
+## 32. Player identity, company identity and social communication
+
+GRIDWORKS must distinguish:
+
+1. **Account** — authentication/security identity;
+2. **Player Profile** — the human's persistent public game identity;
+3. **Company / Group** — the economic entities the player owns or controls.
+
+A Player Profile should support:
+
+- immutable internal player ID;
+- globally unique handle;
+- non-unique display name;
+- avatar/profile image or approved game-generated avatar;
+- biography;
+- language/locale;
+- reputation summaries;
+- achievements;
+- privacy controls;
+- block/mute/report controls;
+- notification preferences.
+
+Company/group identities should support unique names, logos/emblems, profile pages and later public-market identity/tickers. Company identity is separate from player identity because companies can be sold, shared, invested in or acquired.
+
+### 32.1 Messaging model
+
+Launch architecture should include three persistent communication modes:
+
+- **Private DM inbox** — asynchronous conversation threads with unread state, pin/archive/mute/block/report/search;
+- **Consortium chat** — persistent role-aware channels such as General, Projects, Trade, Management and Announcements;
+- **Object-linked job/project/contract/JV threads** — contextual discussion attached to the actual economic object and archived with its history.
+
+Important system events may appear in contextual threads as visually distinct system messages.
+
+Unrestricted global chat is not a launch requirement. Communication should initially be relationship/context driven to reduce spam, scams and moderation load.
+
+### 32.2 Notifications
+
+A unified notification center should support categories such as:
+
+- operations;
+- markets;
+- contracts;
+- messages;
+- consortium activity;
+- managers;
+- finance;
+- security/account.
+
+Players control whether each category is:
+
+- in-game only;
+- push;
+- silent;
+- disabled.
+
+Push notifications must not use manipulative guilt or manufactured urgency.
+
+### 32.3 Social safety
+
+Minimum launch controls:
+
+- block;
+- mute;
+- report;
+- DM permissions;
+- spam/rate limits;
+- moderation audit trail;
+- banned-name/impersonation controls;
+- safe attachment policy;
+- restricted links initially;
+- admin review tooling.
+
+---
+
+## 33. Global language and localization philosophy
+
+Global-language support is a **launch architecture requirement**, not a post-launch translation task.
+
+The authoritative simulation and economic state must be language-neutral. The rules engine stores stable semantic IDs such as:
+
+- `resource.copper_ore`;
+- `fault.motor_bearing_seizure`;
+- `contract.supply`;
+- `event.production_stopped`.
+
+The client renders those concepts using the player's locale.
+
+### 33.1 Localization invariants
+
+1. No authoritative gameplay state stores translated prose as the source of truth.
+2. All system/player-facing game text uses stable localization keys.
+3. Pluralization and grammar must use ICU-grade message semantics or equivalent.
+4. Numbers, dates, percentages and financial values must be locale aware.
+5. Simulation uses canonical units; presentation may convert to locale/user-preferred units.
+6. RTL layout capability is designed from the beginning.
+7. Unicode names/search/moderation are first-class requirements.
+8. Fonts use locale-appropriate fallback chains and downloadable packs where useful.
+9. Language packs are versioned independently from simulation rules.
+10. CI detects missing keys, broken placeholders and malformed translations.
+11. A controlled terminology/glossary system governs specialist industrial and financial vocabulary.
+12. AI-assisted translation may accelerate production, but critical onboarding, financial, legal and monetization content receives human/native QA.
+13. Chat translation is optional and must always preserve access to the original message.
+14. English fallback always exists.
+15. Localization cannot depend on a live LLM/API for normal game operation.
+
+Potential launch locale set should target approximately 15–20 high-value languages with high quality rather than dozens of poor translations. Working candidates include English, Spanish, Portuguese (Brazil), French, German, Italian, Polish, Turkish, Bulgarian, Arabic, Japanese, Korean, Simplified Chinese, Traditional Chinese, Indonesian, Vietnamese and Thai, with additional languages selected from market validation.
+
+---
+
+## 34. Technical direction accepted for DP3
+
+The following architecture direction is accepted as the working DP3 baseline unless a concrete blocker is found:
+
+- **Game client:** Godot 4.x;
+- **Single deterministic simulation/rules engine:** Rust;
+- **Backend services:** Go;
+- **Primary database:** PostgreSQL 18;
+- **Local/offline database:** SQLite;
+- **Messaging/event backbone:** NATS + JetStream where durability is required;
+- **Cache/ephemeral state:** Valkey only when justified by a real use case;
+- **Object storage:** S3-compatible;
+- **Admin/back-office:** React + TypeScript;
+- **External/mobile API:** HTTPS/JSON initially;
+- **Realtime delivery:** WebSocket only where realtime interaction is actually required;
+- **Runtime:** native Linux/systemd on the estate; no container dependency;
+- **Repository:** monorepo;
+- **Identity UX:** guest-first mobile entry with later account protection/linking;
+- **Content/configuration:** data-driven, versioned, signed and server-controlled;
+- **Search:** PostgreSQL initially; introduce dedicated search infrastructure only when justified.
+
+A central invariant is:
+
+> **One rules engine.**
+
+The Rust simulation package is shared by the mobile client, server-side validator, challenge runner, test harness and balance tooling so that core facility/economy rules are not reimplemented inconsistently across languages.
+
+The backend may be modular without being prematurely fragmented into dozens of microservices.
