@@ -1674,3 +1674,391 @@ GRIDWORKS is built from a small set of reusable causal primitives:
 > **Resources flow through facilities composed of dependent systems and components. Components wear, fail, are diagnosed and repaired. Players and managers learn by operating them. Companies own assets, earn and spend credits, trade with one another, contract for work and accumulate financial histories. Geography creates scarcity. Scarcity creates specialization. Specialization creates trade. Trade creates an economy. Cooperation and transparent performance metrics create competition without destruction.**
 
 All later industries and financial systems are expressions of this shared model, not independent minigames.
+
+
+---
+
+# PART XXV — BUSINESS LIFECYCLE AND TURNAROUND MODEL
+
+## 38. Business lifecycle
+
+The core lifecycle is:
+
+```
+Opportunity
+→ Due diligence
+→ Acquire / Develop
+→ Operate
+→ Diagnose / Improve
+→ Expand / Optimize
+→ Hold / List / JV / Sell
+→ Reinvest
+```
+
+A player may repeatedly re-enter the lifecycle in different industries without replaying the same starting puzzle.
+
+### 38.1 Opportunity types
+
+- **Greenfield** — undeveloped site/resource opportunity;
+- **Going concern** — functioning operation with known history/cash flow;
+- **Turnaround** — distressed or barely operational asset/business;
+- **Player listing** — business/facility offered by another player;
+- **Restructuring/tender** — later-stage insolvency or forced-sale opportunity.
+
+### 38.2 Procedural business generation
+
+Generated businesses must begin from a generated **history/state narrative** and derive present condition using the same rules engine that governs normal operations.
+
+Possible history variables:
+
+- facility age;
+- operating strategy;
+- maintenance quality;
+- utilization history;
+- investment history;
+- management quality;
+- staffing;
+- recent incidents;
+- utility reliability;
+- logistics constraints;
+- debt/capital structure later;
+- market/contract situation.
+
+The generator must not directly select arbitrary visible faults as the primary mechanism.
+
+### 38.3 Due diligence
+
+Before purchase, the player receives bounded information such as:
+
+- estimated mechanical/electrical/process condition;
+- known maintenance backlog;
+- estimated production capability;
+- historical revenue/profit where available;
+- major contracts;
+- major liabilities;
+- asking price;
+- confidence/uncertainty.
+
+Relevant player/manager skills may improve precision or expose additional risks.
+
+### 38.4 Persistence after sale
+
+A sold facility/business remains a persistent world object unless the new owner later closes/dismantles it.
+
+Preserve:
+
+- ownership lineage;
+- facility layout;
+- installed components;
+- maintenance history;
+- manager/employment history where transferred;
+- applicable contracts;
+- operating statistics;
+- major incidents;
+- historical financials.
+
+---
+
+# PART XXVI — SOCIAL, IDENTITY AND MESSAGING
+
+## 39. Identity hierarchy
+
+```
+Account
+ └── PlayerProfile
+      └── Ownership/Control
+           └── CompanyGroup
+                ├── Company
+                ├── Company
+                └── JV interests
+```
+
+Account identity is not an economic asset.
+
+PlayerProfile is not a Company.
+
+Company ownership can change without transferring the human account.
+
+### 39.1 Player profile fields
+
+Minimum domain fields:
+
+- player_id;
+- unique_handle;
+- display_name;
+- avatar_asset_id;
+- bio;
+- locale;
+- timezone preference;
+- reputation summary;
+- achievements;
+- privacy settings;
+- DM permissions;
+- notification preferences;
+- block list;
+- moderation state.
+
+### 39.2 Company/group identity
+
+Fields:
+
+- company_id;
+- legal/game name;
+- parent_group_id;
+- logo/emblem asset;
+- short description;
+- headquarters region;
+- owner/share ledger;
+- public/private state;
+- ticker later;
+- reputation;
+- financial summary;
+- consortium memberships.
+
+Unique naming and impersonation rules are enforced server-side.
+
+---
+
+## 40. Messaging domain
+
+Messaging is durable and server-owned.
+
+Core entities:
+
+- Conversation;
+- ConversationParticipant;
+- Message;
+- MessageAttachment;
+- ReadReceipt / last-read cursor;
+- MessageReport;
+- ChannelRole/Permission;
+- ContextLink.
+
+### 40.1 DM inbox
+
+DMs are asynchronous inbox-style conversations.
+
+Required behavior:
+
+- conversation list;
+- unread counts;
+- archive;
+- pin;
+- mute;
+- block;
+- report;
+- search;
+- contextual initiation from another player/company/contract;
+- durable history subject to moderation/privacy retention policy.
+
+### 40.2 Consortium chat
+
+Structured channels at launch:
+
+- General;
+- Projects;
+- Trade;
+- Management;
+- Announcements.
+
+Permissions depend on consortium role.
+
+System-generated consortium/project events are visually differentiated from human messages.
+
+### 40.3 Job/project/contract/JV threads
+
+Economic objects may own dedicated discussion threads.
+
+When the object closes, the thread becomes historical/read-only according to retention policy rather than disappearing.
+
+### 40.4 Global chat
+
+Not required for launch.
+
+If introduced later, it requires separate moderation and anti-spam review.
+
+---
+
+## 41. Notification domain
+
+Notification categories:
+
+- Operations;
+- Markets;
+- Contracts;
+- Messages;
+- Consortium;
+- Managers;
+- Finance;
+- Security.
+
+Delivery channels:
+
+- in-app;
+- push;
+- silent/background;
+- none.
+
+Per-category user preferences are mandatory.
+
+---
+
+# PART XXVII — INTERNATIONALIZATION AND LOCALIZATION
+
+## 42. Semantic-content architecture
+
+Simulation/domain objects store semantic IDs, not translated player-facing prose.
+
+Example:
+
+```
+event_type = facility.production_stopped
+reason_id  = fault.motor.bearing_seizure
+component  = component.conveyor_motor
+```
+
+Localization renders these IDs into the selected language.
+
+### 42.1 Message formatting
+
+Support:
+
+- plural categories;
+- grammatical variants;
+- parameter ordering;
+- locale-aware date/time;
+- locale-aware numeric/financial formatting;
+- RTL;
+- bidirectional text.
+
+Use ICU MessageFormat semantics or equivalent.
+
+### 42.2 Units
+
+Simulation stores canonical SI values.
+
+Presentation can render user/locale preferences, e.g.:
+
+- tonnes vs short tons;
+- km vs miles;
+- °C vs °F;
+- litres vs gallons.
+
+Conversion happens at presentation boundaries, never by altering simulation state.
+
+### 42.3 Language packs
+
+Language packs may contain:
+
+- strings;
+- localized tutorials;
+- terminology catalogue;
+- locale fonts/fallback config;
+- localized media where applicable.
+
+They are:
+
+- versioned;
+- signed;
+- cacheable;
+- independently updateable;
+- downloadable where size warrants.
+
+### 42.4 Localization pipeline
+
+Required stages:
+
+1. canonical source string/content authored;
+2. glossary/terminology resolution;
+3. AI-assisted translation where appropriate;
+4. automated structural validation;
+5. human/native QA for critical content;
+6. package/version publication;
+7. client fallback validation.
+
+CI must fail appropriately for malformed placeholders and required-locale omissions.
+
+### 42.5 Chat translation
+
+Optional message translation service:
+
+- never replaces stored original;
+- original always viewable;
+- can be invoked manually or via preference;
+- failure does not block chat;
+- translation is not authoritative evidence of what sender wrote.
+
+---
+
+# PART XXVIII — DP3 STACK CONSTRAINTS NOW ACCEPTED
+
+## 43. Technical choices carried into DP3
+
+The following DP2-deferred choices are now accepted as DP3 working architecture:
+
+| Layer | Decision |
+|---|---|
+| Game client | Godot 4.x |
+| Shared deterministic rules engine | Rust |
+| Backend application/services | Go |
+| Primary transactional DB | PostgreSQL 18 |
+| Local/offline store | SQLite |
+| Messaging/event transport | NATS + JetStream |
+| Cache | Valkey only when justified |
+| Object storage | S3-compatible |
+| Admin/back-office | React + TypeScript |
+| External API | HTTPS/JSON initially |
+| Realtime | WebSocket |
+| Runtime | Native Linux/systemd |
+| Repository | Monorepo |
+| Search | PostgreSQL initially |
+| Identity UX | Guest-first, account-link/protect later |
+| Content definitions | Data-driven/versioned/signed |
+
+### 43.1 One-rules-engine invariant
+
+The Rust rules engine is the sole canonical implementation of simulation mathematics and deterministic world rules.
+
+Consumers include:
+
+- Godot client;
+- server validator;
+- challenge runner;
+- test harness;
+- balance simulator/tools.
+
+Backend Go services orchestrate ownership, transactions, markets, social systems, persistence and authoritative state. They must not duplicate core simulation logic.
+
+### 43.2 Ledger-first economy
+
+Economic value transitions must be auditable from the first implementation.
+
+Do not scatter untraceable `coins += x` mutations throughout services.
+
+Use durable transaction/journal structures suitable for later:
+
+- profit/loss;
+- ROI;
+- ROC/ROIC;
+- inventory valuation;
+- dividends;
+- stock exchange;
+- fraud investigation.
+
+---
+
+# PART XXIX — UPDATED DP2 ACCEPTANCE ADDITIONS
+
+DP2/DP3 design continuity additionally requires:
+
+17. Player, Account and Company remain distinct domains.
+18. DM inbox, Consortium chat and object-linked project/job threads have durable domain models.
+19. Notifications are user-configurable and not manipulative.
+20. Businesses support greenfield, going-concern and turnaround acquisition paths.
+21. Procedurally generated distressed assets derive from causal operating histories.
+22. Sold businesses/facilities preserve ownership and operating history.
+23. Localization is semantic-key based and language-neutral at the simulation layer.
+24. RTL, Unicode, locale formatting and canonical-unit conversion are architectural requirements.
+25. Global launch localization does not depend on an online LLM.
+26. The accepted stack preserves the single Rust rules engine across client/server validation.
+27. The economic ledger is auditable from initial implementation.
