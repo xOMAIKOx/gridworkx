@@ -2226,3 +2226,57 @@ Controls may include:
 - anomaly detection.
 
 The design goal is **reliable exit liquidity, not risk-free temporary financing**.
+
+
+---
+
+# PART XXXII — ACCEPTED TIME AND SEASON MODEL
+
+## 46. Time baseline
+
+Initial operational time compression:
+
+> **1 game day = 1 real hour**
+
+All authoritative elapsed-time calculations use server-issued UTC timestamps.
+
+The time ratio is versioned content/rules configuration and may not be silently changed by the client.
+
+### 46.1 Clock domains
+
+Maintain separate concepts for:
+
+- authoritative real time;
+- compressed operational simulation time;
+- regional climate calendar.
+
+### 46.2 Regional climate calendar
+
+Climate follows regional real-calendar cycles rather than the compressed operational clock.
+
+Season profiles may affect:
+
+- resource demand;
+- crop/biological processes;
+- heating/cooling load;
+- generation availability;
+- water availability;
+- logistics risk;
+- construction productivity;
+- property costs.
+
+### 46.3 Offline-safe settlement
+
+Offline catch-up must apply the same deterministic rules as online play while enforcing protective behavior such as safe shutdown, storage limits and bounded degradation.
+
+No destructive outcome should occur solely because the user failed to log in during an artificially narrow window.
+
+### 46.4 Timed jobs
+
+Timed jobs must support data-driven duration and legitimate in-game modifiers.
+
+Paid entitlements may improve planning/queue administration, but must not create an instant productive completion path unavailable through gameplay.
+
+### 46.5 Release terminology
+
+Product expansions are called Releases. Climate/world seasons remain separate simulation concepts.
