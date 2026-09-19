@@ -2109,3 +2109,24 @@ The 20% is an initial minimum premium and remains balanceable.
 If comparable alternatives are unavailable, scarcity may push the price higher for every buyer. The former owner receives no hidden discount simply because they previously owned the asset.
 
 This prevents GRIDWORKS from becoming a free short-term lender or asset-parking service while still giving players a reliable way to raise capital by exiting a business.
+
+
+---
+
+## 38. World time, seasons and waiting philosophy
+
+GRIDWORKS uses an initial baseline of:
+
+> **1 in-game day = 1 real hour.**
+
+Operational simulation time is compressed, but world climate seasons follow real-calendar regional cycles rather than racing through spring/summer/autumn/winter every few real days.
+
+Regional seasonality matters economically. Northern/southern temperate, tropical and arid regions may experience different seasonal cycles, which can influence agriculture, energy demand, oil/gas demand, water availability, logistics, construction and property operating costs.
+
+Timers should create planning rather than frustration. Small actions may take seconds/minutes, repairs minutes/hours, and major construction hours/days. Exact values are balance data.
+
+Time reduction must come from gameplay systems such as skills, managers, player assistance, prefabrication, logistics and earned capacity—not cash-paid instant completion.
+
+Offline behavior must be safe and respectful of normal life. Production may continue, storage may fill, systems may pause safely, and consequences may accumulate, but a player should not suffer arbitrary catastrophic loss merely because they slept, worked or did not log in.
+
+Product expansion terminology is standardized as **Release 1, Release 2, Release 3...** rather than using season numbers for feature releases.
