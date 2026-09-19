@@ -1962,3 +1962,110 @@ A central invariant is:
 The Rust simulation package is shared by the mobile client, server-side validator, challenge runner, test harness and balance tooling so that core facility/economy rules are not reimplemented inconsistently across languages.
 
 The backend may be modular without being prematurely fragmented into dozens of microservices.
+
+
+---
+
+## 35. Non-political authorities and GRIDWORKS treasury recirculation
+
+GRIDWORKS deliberately excludes political gameplay.
+
+There are no mayors, elected governments, political parties, ideological factions or player-controlled public offices.
+
+Operational charges may still exist and be explained through neutral service/economic abstractions such as:
+
+- Local Authority;
+- Port Authority;
+- Utility Authority;
+- Infrastructure Authority;
+- Registry Authority.
+
+These are not political actors. They exist only to explain and account for charges such as property tax, port fees, warehouse/local charges, registry fees or infrastructure usage.
+
+Internally, those charges may accumulate in auditable non-player treasury ledgers. GRIDWORKS operators may use that in-game value under controlled rules to recirculate money back into the player economy through:
+
+- system procurement;
+- community project funding;
+- infrastructure funding;
+- starter/recovery buybacks;
+- occasional GRIDWORKS purchase offers for player-owned businesses or property;
+- release/acquisition of GRIDWORKS-owned inventory.
+
+GRIDWORKS buyback offers must never become an unlimited guaranteed purchaser at above-market value. Offers should be conditional, bounded, auditable and priced from transparent valuation inputs.
+
+The purpose is to create a closed-loop economic sink/source system rather than simply destroying all tax/fee revenue.
+
+## 36. GRIDWORKS-owned assets
+
+GRIDWORKS may own in-game land, property, businesses and facilities as platform/system inventory.
+
+A player clicking such an asset may see, for example:
+
+**Owner: GRIDWORKS**  
+**Price: 420,000 Cr**  
+**[Purchase]**
+
+A player-owned asset may instead expose:
+
+**Owner: Maik Industrial Properties**  
+**[View Company] [Contact Owner] [Make Offer]**
+
+GRIDWORKS-owned assets may be:
+
+- fixed-price purchasable;
+- leaseable;
+- reserved/unavailable;
+- held for a future season;
+- used to seed a new market;
+- repurchased from players under bounded system offers.
+
+Future Season 2+ inventory may already exist visibly in the world from launch under GRIDWORKS ownership but remain unavailable until the relevant release.
+
+GRIDWORKS-owned productive assets are never directly purchasable with real money.
+
+## 37. Real estate and player-selected starts
+
+Real estate is part of the launch-world foundation, even if Season 1 implements only a constrained subset.
+
+Core launch concepts include:
+
+- land parcels;
+- industrial buildings;
+- warehouses;
+- offices;
+- basic residential property;
+- ownership;
+- sale/listing;
+- leasing foundations;
+- vacancy/occupancy;
+- maintenance;
+- renovation;
+- valuation;
+- GRIDWORKS-owned and player-owned inventory.
+
+New players should not be forced into one industry or given a burdensome portfolio of every business.
+
+After the shared introductory reasoning tutorial, players choose a starting path such as:
+
+- Mining/Quarrying;
+- Agriculture;
+- Manufacturing;
+- Energy;
+- Logistics;
+- Real Estate;
+- Finance/Markets;
+- Generalist / Surprise Me.
+
+This is a starting position, not a class.
+
+Players may later diversify freely.
+
+A business the player does not want to operate may be:
+
+- operated;
+- mothballed/suspended;
+- sold;
+- leased/contracted out later;
+- dismantled/repurposed where appropriate.
+
+The game should make it clear that the starting business is only the player's first foothold in the world, not their permanent identity.
