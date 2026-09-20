@@ -1,0 +1,16 @@
+{
+  "policy_id": "bootstrap.economy.initial",
+  "rules_version": "rules-0.1.0",
+  "system_principal": "ownership.gridworks",
+  "bounded_participation": [
+    "bootstrap.demand",
+    "bootstrap.supply",
+    "bootstrap.contracts",
+    "bootstrap.transport_opportunities",
+    "bootstrap.property_inventory",
+    "bootstrap.emergency_supply",
+    "bootstrap.liquidity"
+  ],
+  "recession_signal": "observed.market_depth",
+  "audit_requirement": "accounting.ledger"
+}

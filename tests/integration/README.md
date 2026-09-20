@@ -1,0 +1,1 @@
+Integration evidence will cover client/Rust, client/API, API/database, event delivery, offline sync, realtime and localization package boundaries. WP-001 provides only the executable process and contract foundations.

@@ -1,0 +1,1 @@
+Structural checks prove that the required WP-001 monorepo paths, native service templates and cross-language foundation files remain present. They are intentionally repository-only checks and do not mutate ERIS.

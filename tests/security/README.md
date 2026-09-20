@@ -1,0 +1,1 @@
+Security gates include secret scanning, forbidden-runtime scanning and native-template hardening checks. Domain authorization, idempotency, replay and moderation behavior remain owned by later authorized work packages.

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/semantic-id.schema.json",
+  "title": "GRIDWORKS semantic identifier",
+  "type": "string",
+  "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$",
+  "minLength": 3,
+  "maxLength": 160
+}

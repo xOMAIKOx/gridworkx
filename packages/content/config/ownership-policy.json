@@ -1,0 +1,16 @@
+{
+  "policy_id": "ownership.policy.initial",
+  "system_principal": {
+    "principal_id": "ownership.gridworks",
+    "display_label": "GRIDWORKS",
+    "kind": "non_player_system"
+  },
+  "authority_principals": [
+    {"principal_id": "authority.local", "kind": "operational_service_authority"},
+    {"principal_id": "authority.port", "kind": "operational_service_authority"},
+    {"principal_id": "authority.utility", "kind": "operational_service_authority"},
+    {"principal_id": "authority.registry", "kind": "operational_service_authority"}
+  ],
+  "political_government_simulation": false,
+  "reserved_states": ["asset.available", "asset.leaseable", "asset.reserved", "asset.unavailable", "asset.future_release"]
+}

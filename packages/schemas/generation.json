@@ -1,0 +1,14 @@
+{
+  "generation_boundary": "packages/schemas",
+  "schema_version": "schema-0.1.0",
+  "canonical_representation": "json",
+  "generated_targets": ["rust", "go", "typescript", "json_schema", "openapi"],
+  "generated_artifact_roots": {
+    "rust": "crates/gridworks-sim/src/generated",
+    "go": "services/generated",
+    "typescript": "apps/admin/src/generated",
+    "json_schema": "packages/schemas/generated",
+    "openapi": "packages/schemas/generated/openapi"
+  },
+  "generated_artifacts_are_authoritative": false
+}
