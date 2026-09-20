@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 1.26.5
+          cache: false
       - name: Select the repository Rust toolchain
         run: |
           rustup toolchain install 1.75.0 --profile minimal --component rustfmt,clippy
@@ -51,6 +52,7 @@ jobs:
           curl -fL --retry 3 -o SHA512-SUMS.txt https://github.com/godotengine/godot/releases/download/4.7.2-stable/SHA512-SUMS.txt
           sha512sum --ignore-missing --check SHA512-SUMS.txt
           unzip -q "$archive"
+          mkdir -p "$HOME/.local/bin"
           install -m 0755 Godot_v4.7.2-stable_linux.x86_64 "$HOME/.local/bin/godot"
       - name: Parse the Godot project headlessly
         run: "$HOME/.local/bin/godot --headless --path apps/game --editor --quit --audio-driver Dummy"
