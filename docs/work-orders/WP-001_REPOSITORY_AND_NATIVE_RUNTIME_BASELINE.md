@@ -43,19 +43,48 @@ Target runtime is native Linux/systemd.
 - Kubernetes;
 - container-only build/test assumptions.
 
-No host changes are authorized by WP-001.
+WP-001 authorizes a **bounded ERIS development prerequisite audit and toolchain preparation** before any coding begins.
 
-Do not:
-- install packages on ERIS or any estate host;
-- create/modify systemd services on a host;
-- change nginx/reverse proxies;
-- change DNS;
-- allocate production/dev ports on hosts;
-- modify firewall/WireGuard;
-- create databases/users on shared infrastructure;
-- deploy any service.
+Authorized host scope is **ERIS only**, with repository workspace:
 
-Repository templates/examples for later native deployment are allowed.
+`/srv/gridworx/`
+
+Engineering must first inspect the host and record the current prerequisite/toolchain state. It may then install only missing development prerequisites required to build/test the accepted stack.
+
+Permitted prerequisite preparation may include, as required:
+- Git and normal repository tooling;
+- Rust toolchain/cargo/rustfmt/clippy;
+- Go toolchain;
+- Node.js and the selected package manager for the admin/tooling workspace;
+- Godot 4.x editor/headless tooling required for project validation;
+- native compiler/build essentials and pkg-config;
+- PostgreSQL client/development tooling required for migrations/build tests;
+- SQLite development/client tooling;
+- NATS client/development tooling where required for local validation;
+- static analysis, formatting, schema-validation and secret-scanning tools required by WP-001 gates.
+
+Rules:
+- inspect before installing;
+- prefer distro/native packages where appropriate, otherwise use pinned/checksummed upstream toolchains;
+- record package/tool name, version, source and installation command in the WP-001 evidence;
+- do not replace a working compatible estate-standard package merely to chase the newest version;
+- do not install Docker, Podman, Compose, Kubernetes, OCI runtimes or container-dependent tooling;
+- do not install or start application infrastructure services merely because client/dev libraries are needed.
+
+Still prohibited without separate owner authorization:
+- changing nginx/reverse proxies;
+- changing DNS;
+- changing firewall/WireGuard;
+- allocating externally reachable application ports;
+- creating/modifying production-style systemd application units on ERIS;
+- creating shared PostgreSQL databases/users;
+- installing/running NATS/PostgreSQL/object-storage daemons for GRIDWORKS;
+- deploying GRIDWORKS services;
+- changes outside ERIS.
+
+Repository templates/examples for later native deployment remain allowed.
+
+**Hard gate:** no application/repository implementation work begins until the ERIS prerequisite audit is complete, missing authorized prerequisites are installed, and a concise prerequisite receipt is posted to the WP-001 GitHub issue.
 
 ## 4. Required monorepo foundation
 
@@ -385,7 +414,8 @@ Engineering must return through the WP-001 GitHub issue/PR with:
 - known deviations;
 - unresolved risks;
 - architecture conflicts discovered;
-- explicit statement that no estate host changes were performed.
+- ERIS prerequisite audit receipt, including detected versions, installed prerequisites and commands used;
+- explicit statement that no host changes outside the authorized ERIS prerequisite scope were performed.
 
 If a PR is opened, keep it draft until Architecture reviews it.
 
@@ -398,7 +428,7 @@ WP-001 is complete only when Architecture can verify:
 3. Rust is structurally the sole canonical simulation location;
 4. cross-language schema/content ownership is explicit;
 5. accepted domains introduced through ADR-006..009 are not omitted;
-6. native systemd runtime templates exist without host changes;
+6. ERIS prerequisite audit/preparation completed before coding, and native systemd runtime templates exist without application deployment;
 7. build/test/validation gates pass;
 8. no container dependency exists;
 9. no secrets are committed;
