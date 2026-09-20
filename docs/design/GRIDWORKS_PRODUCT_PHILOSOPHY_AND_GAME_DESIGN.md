@@ -2130,3 +2130,49 @@ Time reduction must come from gameplay systems such as skills, managers, player 
 Offline behavior must be safe and respectful of normal life. Production may continue, storage may fill, systems may pause safely, and consequences may accumulate, but a player should not suffer arbitrary catastrophic loss merely because they slept, worked or did not log in.
 
 Product expansion terminology is standardized as **Release 1, Release 2, Release 3...** rather than using season numbers for feature releases.
+
+
+---
+
+## 39. World, presentation and Release-1 completeness
+
+GRIDWORKS presents **one logical persistent global economy** divided into differentiated regions. Regions vary by climate, geography, resources, transport infrastructure, land/property markets, utilities and local demand. Player-visible server shards are not part of the product model unless future scale makes them technically unavoidable.
+
+The player experiences the world through four principal presentation layers:
+
+1. **World Map** — global/regional economy, companies, opportunities and trade/logistics routes.
+2. **Player Portfolio Map** — the player's businesses/assets and their connections, with lightweight activity animation.
+3. **Site / Business View** — industry-specific 2.5D view of a mine, refinery, farm, warehouse, property or other operation.
+4. **Operational Detail View** — inspection, diagnosis, repair, production, telemetry and management.
+
+The initial visual direction is 2.5D isometric/oblique with stylized low-poly 3D assets rendered in Godot, 2D information overlays, a clean semi-realistic industrial-diorama aesthetic and limited/fixed site-view rotations rather than a free-camera full-3D requirement.
+
+Animation should communicate activity and system state rather than chase cinematic realism. Useful examples include moving trucks/trains/ships, running conveyors, rotating turbines, construction activity, operational lights/steam and lightweight ambient people/vehicles.
+
+Core trade transport modes are road, rail, ship/water and air. Each must have meaningful differences in cost, speed, capacity, infrastructure dependency, cargo suitability and risk. Hazardous cargo may use stricter handling, higher cost/insurance and bounded loss/disruption risk; detailed disaster simulation is not required for Release 1.
+
+### 39.1 One-player bootstrap invariant
+
+GRIDWORKS must remain economically functional with **one active player**.
+
+The GRIDWORKS system principal may therefore seed bounded supply, demand, contracts, transport opportunities, property/business inventory, emergency supply and liquidity. System participation should recede as player-market depth develops.
+
+Operator intervention may exist through live-ops/admin controls, but must be bounded, auditable and ledgered.
+
+### 39.2 Release-1 posture
+
+Release 1 is a commercially complete product, not a thin MVP shell.
+
+Core domains — industry, trade, logistics, property, finance, contracts, managers, skills, social/messaging, localization, markets and GRIDWORKS liquidity — must exist in usable form at launch.
+
+Later Releases may deepen advanced derivatives, mergers/restructuring, property interiors, disaster simulation, demographic depth, unrestricted global chat and broad arbitrary user-uploaded media.
+
+The planning question is:
+
+> **What can reasonably be deferred without making GRIDWORKS feel incomplete at launch?**
+
+### 39.3 Social/age posture
+
+Design the online/social architecture for approximately 12+/13+ suitability without requiring formal age verification in the normal player flow. Strong block, mute, report, DM-permission, rate-limit, naming/impersonation and moderation controls are launch requirements.
+
+Prefer generated/customizable avatars and logos before broad arbitrary user-uploaded media.
