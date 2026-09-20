@@ -1,0 +1,58 @@
+name: WP-001 foundation
+
+on:
+  push:
+    branches: [main, "engineering/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache: false
+      - name: Select the repository Rust toolchain
+        run: |
+          rustup toolchain install 1.75.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.75.0
+      - name: Install native validation tools
+        run: sudo apt-get update && sudo apt-get install -y gitleaks shellcheck sqlite3
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Validate repository and contracts
+        run: make validate
+      - name: Run tests
+        run: make test
+      - name: Run security gates
+        run: make security
+      - name: Validate SQL file shape without connecting to a database
+        run: |
+          test -s db/migrations/0001_wp001_foundation.sql
+          test -s db/seeds/0001_domain_registry.sql
+          sqlite3 ":memory:" "select 1;"
+
+  godot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Godot editor
+        run: |
+          archive=Godot_v4.7.2-stable_linux.x86_64.zip
+          curl -fL --retry 3 -o "$archive" https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          curl -fL --retry 3 -o SHA512-SUMS.txt https://github.com/godotengine/godot/releases/download/4.7.2-stable/SHA512-SUMS.txt
+          sha512sum --ignore-missing --check SHA512-SUMS.txt
+          unzip -q "$archive"
+          mkdir -p "$HOME/.local/bin"
+          install -m 0755 Godot_v4.7.2-stable_linux.x86_64 "$HOME/.local/bin/godot"
+      - name: Parse the Godot project headlessly
+        run: "$HOME/.local/bin/godot --headless --path apps/game --editor --quit --audio-driver Dummy"

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/content-manifest.schema.json",
+  "title": "GRIDWORKS content manifest",
+  "type": "object",
+  "required": ["manifest_id", "schema_version", "rules_version", "content_version", "signature_required", "bundles"],
+  "properties": {
+    "manifest_id": {"$ref": "semantic-id.schema.json"},
+    "schema_version": {"type": "string", "minLength": 1},
+    "rules_version": {"type": "string", "minLength": 1},
+    "content_version": {"type": "string", "minLength": 1},
+    "signature_required": {"const": true},
+    "bundles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["bundle_id", "kind", "path", "checksum"],
+        "properties": {
+          "bundle_id": {"$ref": "semantic-id.schema.json"},
+          "kind": {"enum": ["simulation_rules", "localization", "presentation"]},
+          "path": {"type": "string", "minLength": 1},
+          "checksum": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

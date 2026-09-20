@@ -1,0 +1,13 @@
+{
+  "locale": "en",
+  "messages": {
+    "app.title": "GRIDWORKS",
+    "app.loading": "Loading GRIDWORKS",
+    "presentation.world_map": "World Map",
+    "presentation.portfolio_map": "Portfolio Map",
+    "presentation.site_view": "Site View",
+    "presentation.operational_detail": "Operational Detail",
+    "ownership.gridworks": "GRIDWORKS",
+    "onboarding.starter_path": "Choose a starting path"
+  }
+}

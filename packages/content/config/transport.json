@@ -1,0 +1,11 @@
+{
+  "config_id": "transport.modes.initial",
+  "modes": [
+    {"mode_id": "transport.road", "contract": "cost.time.capacity.infrastructure.risk"},
+    {"mode_id": "transport.rail", "contract": "cost.time.capacity.infrastructure.risk"},
+    {"mode_id": "transport.ship", "contract": "cost.time.capacity.infrastructure.risk"},
+    {"mode_id": "transport.air", "contract": "cost.time.capacity.infrastructure.risk"}
+  ],
+  "cargo_compatibility_is_explicit": true,
+  "hazardous_handling_is_explicit": true
+}

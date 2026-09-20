@@ -1,0 +1,19 @@
+{
+  "config_id": "time.configuration.initial",
+  "rules_version": "rules-0.1.0",
+  "authoritative_clock": "server.utc",
+  "operational_time_ratio": {
+    "in_game_days_per_real_hour": 1,
+    "real_seconds_per_in_game_day": 3600
+  },
+  "climate_calendar": "regional.real_calendar",
+  "offline_policy": {
+    "safe_progression": true,
+    "client_wall_clock_authoritative": false,
+    "rules_version_required": true
+  },
+  "timed_job_contract": {
+    "duration_source": "versioned.content",
+    "productive_paid_instant_finish": false
+  }
+}

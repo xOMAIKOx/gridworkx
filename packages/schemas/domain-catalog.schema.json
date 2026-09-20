@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/domain-catalog.schema.json",
+  "title": "GRIDWORKS domain ownership catalogue",
+  "type": "object",
+  "required": ["schema_version", "domains"],
+  "properties": {
+    "schema_version": {"type": "string", "minLength": 1},
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain_id", "owner", "status", "contract"],
+        "properties": {
+          "domain_id": {"$ref": "semantic-id.schema.json"},
+          "owner": {"type": "string", "minLength": 1},
+          "status": {"const": "foundation"},
+          "contract": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

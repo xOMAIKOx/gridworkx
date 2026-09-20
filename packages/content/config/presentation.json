@@ -1,0 +1,12 @@
+{
+  "config_id": "world.presentation.initial",
+  "layers": [
+    {"layer_id": "presentation.world_map", "authority": "server_domain_state"},
+    {"layer_id": "presentation.portfolio_map", "authority": "server_domain_state"},
+    {"layer_id": "presentation.site_view", "authority": "server_domain_state"},
+    {"layer_id": "presentation.operational_detail", "authority": "server_domain_state"}
+  ],
+  "camera_model": "2.5d_isometric_oblique",
+  "site_rotation_count": 4,
+  "presentation_is_authoritative": false
+}

@@ -1,0 +1,8 @@
+{
+  "config_id": "persistence.postgresql.initial",
+  "engine": "postgresql",
+  "target_major_version": 18,
+  "authority": "transactional_server",
+  "migration_root": "db/migrations",
+  "shared_service_provisioning": "separate_authorization_required"
+}

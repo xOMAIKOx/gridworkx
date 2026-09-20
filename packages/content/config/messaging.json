@@ -1,0 +1,8 @@
+{
+  "config_id": "messaging.nats_jetstream.initial",
+  "transport": "nats",
+  "durability": "jetstream_where_required",
+  "subject_pattern": "gridworks.<domain>.<event>.v<version>",
+  "envelope_schema": "schema.event_envelope",
+  "server_provisioning": "separate_authorization_required"
+}

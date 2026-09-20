@@ -1,0 +1,12 @@
+{
+  "manifest_id": "content.manifest.wp001",
+  "schema_version": "schema-0.1.0",
+  "rules_version": "rules-0.1.0",
+  "content_version": "content-0.1.0",
+  "signature_required": true,
+  "bundles": [
+    {"bundle_id": "bundle.simulation_rules", "kind": "simulation_rules", "path": "packages/content/domain-catalog.json", "checksum": "sha256:recorded-at-publication"},
+    {"bundle_id": "bundle.localization", "kind": "localization", "path": "packages/localization/catalogue.json", "checksum": "sha256:recorded-at-publication"},
+    {"bundle_id": "bundle.presentation", "kind": "presentation", "path": "packages/visual-assets/manifests/semantic-assets.json", "checksum": "sha256:recorded-at-publication"}
+  ]
+}

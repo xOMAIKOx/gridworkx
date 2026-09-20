@@ -1,0 +1,13 @@
+{
+  "manifest_id": "visual.asset.manifest.initial",
+  "schema_version": "schema-0.1.0",
+  "assets": [
+    {"asset_id": "icon.resource.copper_ore", "kind": "semantic_icon", "source": "reserved"},
+    {"asset_id": "icon.transport.road", "kind": "semantic_icon", "source": "reserved"},
+    {"asset_id": "icon.transport.rail", "kind": "semantic_icon", "source": "reserved"},
+    {"asset_id": "icon.transport.ship", "kind": "semantic_icon", "source": "reserved"},
+    {"asset_id": "icon.transport.air", "kind": "semantic_icon", "source": "reserved"},
+    {"asset_id": "icon.fault.motor_bearing_seizure", "kind": "semantic_icon", "source": "reserved"},
+    {"asset_id": "icon.industry.real_estate", "kind": "semantic_icon", "source": "reserved"}
+  ]
+}

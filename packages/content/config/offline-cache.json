@@ -1,0 +1,8 @@
+{
+  "config_id": "offline.cache.initial",
+  "engine": "sqlite",
+  "authority": "client_cache_only",
+  "authoritative_settlement": "server_validated",
+  "authoritative_time_source": "server.utc",
+  "reserved_tables": ["cached_profile", "cached_facility_snapshot", "content_manifest", "localization_pack", "planning_draft", "queued_intent", "sync_metadata"]
+}

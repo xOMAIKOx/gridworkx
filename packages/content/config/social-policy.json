@@ -1,0 +1,15 @@
+{
+  "policy_id": "moderation.policy.initial",
+  "policy_version": "policy-0.1.0",
+  "controls": [
+    "social.dm_permissions",
+    "social.block",
+    "social.mute",
+    "social.report",
+    "social.rate_limits",
+    "social.name_moderation",
+    "social.confusable_detection",
+    "social.moderation_audit"
+  ],
+  "normal_operation_requires_live_llm": false
+}

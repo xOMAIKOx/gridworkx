@@ -1,0 +1,1 @@
+Economy evidence is reserved for ledger conservation, market integrity, fairness and business transfer invariants. WP-001 records the domain ownership and bootstrap policy boundaries without implementing those algorithms.

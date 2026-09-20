@@ -1,0 +1,9 @@
+{
+  "catalogue_id": "localization.catalogue.initial",
+  "schema_version": "schema-0.1.0",
+  "default_locale": "en",
+  "supported_locales": ["en"],
+  "fallback_locale": "en",
+  "semantic_keys": "packages/localization/en/messages.json",
+  "simulation_layer_contains_translated_prose": false
+}

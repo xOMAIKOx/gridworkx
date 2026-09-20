@@ -1,0 +1,25 @@
+[Unit]
+Description=GRIDWORKS API (template)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gridworks
+Group=gridworks
+WorkingDirectory=/srv/gridworx
+EnvironmentFile=-/etc/gridworks/gridworks.env
+ExecStart=/usr/local/libexec/gridworks/gridworks-api --bind $GRIDWORKS_API_BIND
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gridworks/api
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

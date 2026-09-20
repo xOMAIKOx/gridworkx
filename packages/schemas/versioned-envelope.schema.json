@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/versioned-envelope.schema.json",
+  "title": "GRIDWORKS versioned contract envelope",
+  "type": "object",
+  "required": ["schema_version", "rules_version", "release_version", "payload"],
+  "properties": {
+    "schema_version": {"type": "string", "minLength": 1},
+    "rules_version": {"type": "string", "minLength": 1},
+    "release_version": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

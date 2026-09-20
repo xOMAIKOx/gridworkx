@@ -1,0 +1,25 @@
+[Unit]
+Description=GRIDWORKS simulation validator (template)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gridworks
+Group=gridworks
+WorkingDirectory=/srv/gridworx
+EnvironmentFile=-/etc/gridworks/gridworks.env
+ExecStart=/usr/local/libexec/gridworks/gridworks-sim-validator --bind $GRIDWORKS_SIM_VALIDATOR_BIND
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gridworks/sim-validator
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

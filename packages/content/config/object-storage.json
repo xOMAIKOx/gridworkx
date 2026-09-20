@@ -1,0 +1,8 @@
+{
+  "config_id": "storage.s3_compatible.initial",
+  "protocol": "s3-compatible",
+  "uses": ["attachments", "content_bundles", "replays", "visual_assets"],
+  "endpoint_source": "external_environment",
+  "credentials_source": "external_secret_store",
+  "server_provisioning": "separate_authorization_required"
+}

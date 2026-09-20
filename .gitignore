@@ -1,0 +1,38 @@
+# OS and editor files
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Build outputs
+/build/
+**/dist/
+node_modules/
+*.uid
+.npm/
+
+# Rust
+/target/
+
+# Go
+/bin/
+
+# Godot generated state
+.godot/
+
+# Test and local runtime state
+coverage/
+.tmp/
+*.sqlite
+*.sqlite3
+*.db

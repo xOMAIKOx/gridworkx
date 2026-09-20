@@ -1,0 +1,1 @@
+Deterministic smoke coverage lives beside the canonical Rust crate and is executed with `cargo test --workspace`. This directory reserves the cross-package evidence location for future replay fixtures without implementing the WP-002 simulation kernel.
