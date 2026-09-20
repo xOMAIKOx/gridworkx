@@ -2280,3 +2280,89 @@ Paid entitlements may improve planning/queue administration, but must not create
 ### 46.5 Release terminology
 
 Product expansions are called Releases. Climate/world seasons remain separate simulation concepts.
+
+
+---
+
+# PART XXXIII — WORLD, PRESENTATION AND BOOTSTRAP MODEL
+
+## 47. Logical world topology
+
+The product exposes one logical global economy containing multiple differentiated regions.
+
+Region boundaries influence:
+- climate;
+- resources;
+- local supply/demand;
+- land/property;
+- utilities;
+- transport infrastructure;
+- logistics cost/time;
+- seasonal effects.
+
+Physical deployment/sharding may change later without changing this product-level world model.
+
+## 48. Presentation layers
+
+Client architecture must reserve distinct navigation/state models for:
+
+- World Map;
+- Player Portfolio Map;
+- Site / Business View;
+- Operational Detail View.
+
+Presentation is non-authoritative. Visual animation must consume authoritative/domain state rather than becoming a second simulation engine.
+
+Initial site presentation is 2.5D isometric/oblique using modular stylized low-poly assets plus 2D UI overlays. Site camera support should allow limited/fixed rotations rather than requiring unrestricted 3D navigation.
+
+## 49. Transport economics
+
+Road, rail, ship/water and air are first-class logistics modes.
+
+Transport calculations must be able to express:
+- distance/route;
+- travel time;
+- cost;
+- capacity;
+- handling;
+- cargo compatibility;
+- infrastructure dependency;
+- reliability/risk;
+- hazardous/special handling.
+
+Detailed accident simulation may be deferred, but the data model must not assume all transport has equal risk or cargo eligibility.
+
+## 50. One-player economic bootstrap
+
+The shared economy must be playable with one active player.
+
+GRIDWORKS system participation may create bounded:
+- demand/buy orders;
+- supply/sell orders;
+- contracts/jobs;
+- transport opportunities;
+- property/business listings;
+- emergency supply;
+- asset liquidity.
+
+Bootstrap intensity should be responsive to observed market depth/liquidity and reduce as player participation becomes sufficient.
+
+All system-originated economic activity is identifiable, policy-driven and auditable through the ledger.
+
+## 51. Release-1 completeness
+
+Release 1 must provide a coherent, commercially complete game across the accepted core domains. Later Releases add depth rather than unlock the missing fundamental game.
+
+The architecture therefore must not hard-code deferred assumptions that would require incompatible rewrites when richer property, finance, transport or industry depth is introduced.
+
+## 52. Visual asset semantics
+
+Visual assets/icons should map to stable semantic identifiers where practical.
+
+Examples:
+- `resource.copper_ore`;
+- `transport.rail`;
+- `industry.real_estate`;
+- `fault.motor_bearing_seizure`.
+
+UI/icon pipelines must remain localization-safe and must not encode player-facing text into authoritative art assets when avoidable.
