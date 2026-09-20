@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/simulation-state.schema.json",
+  "title": "GRIDWORKS versioned simulation snapshot",
+  "type": "object",
+  "required": ["snapshot_type", "schema_version", "rules_version", "kernel_revision", "state"],
+  "properties": {
+    "snapshot_type": {"const": "simulation.snapshot"},
+    "schema_version": {"type": "string", "minLength": 1},
+    "rules_version": {"type": "string", "minLength": 1},
+    "kernel_revision": {"type": "string", "minLength": 1},
+    "state": {
+      "type": "object",
+      "required": ["schema_version", "rules_version", "kernel_revision", "operational_time_ms", "rng", "proof", "executed_commands"],
+      "properties": {
+        "schema_version": {"type": "string", "minLength": 1},
+        "rules_version": {"type": "string", "minLength": 1},
+        "kernel_revision": {"type": "string", "minLength": 1},
+        "operational_time_ms": {"type": "integer", "minimum": 0},
+        "rng": {
+          "type": "object",
+          "required": ["algorithm", "seed", "state", "draws"],
+          "properties": {
+            "algorithm": {"type": "string", "minLength": 1},
+            "seed": {"type": "integer", "minimum": 1},
+            "state": {"type": "integer", "minimum": 1},
+            "draws": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "proof": {
+          "type": "object",
+          "required": ["register", "pulse_count", "last_pulse"],
+          "properties": {
+            "register": {"type": "integer"},
+            "pulse_count": {"type": "integer", "minimum": 0},
+            "last_pulse": {"type": ["integer", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "executed_commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["command_id", "idempotency_key"],
+            "properties": {
+              "command_id": {"type": "string", "minLength": 1},
+              "idempotency_key": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

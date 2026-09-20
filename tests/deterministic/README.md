@@ -1,1 +1,1 @@
-Deterministic smoke coverage lives beside the canonical Rust crate and is executed with `cargo test --workspace`. This directory reserves the cross-package evidence location for future replay fixtures without implementing the WP-002 simulation kernel.
+Deterministic and replay coverage lives beside the canonical Rust crate and is executed with `cargo test --workspace`. The integration harness under `crates/gridworks-sim/tests/replay.rs` proves snapshot restoration, identical event/state/digest replay and version rejection.
