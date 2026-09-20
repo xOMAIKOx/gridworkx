@@ -7,6 +7,7 @@
     {"schema_id": "schema.content_manifest", "path": "content-manifest.schema.json", "version": "0.1.0"},
     {"schema_id": "schema.event_envelope", "path": "event-envelope.schema.json", "version": "0.1.0"},
     {"schema_id": "schema.simulation_command", "path": "simulation-command.schema.json", "version": "0.1.0"},
-    {"schema_id": "schema.simulation_state", "path": "simulation-state.schema.json", "version": "0.1.0"}
+    {"schema_id": "schema.simulation_state", "path": "simulation-state.schema.json", "version": "0.1.0"},
+    {"schema_id": "schema.facility_graph", "path": "facility-graph.schema.json", "version": "0.1.0"}
   ]
 }

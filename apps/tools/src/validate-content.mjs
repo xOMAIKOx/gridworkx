@@ -15,6 +15,7 @@ for (const fileName of [
   "domain-catalog.schema.json",
   "content-manifest.schema.json",
   "simulation-command.schema.json",
+  "facility-graph.schema.json",
   "simulation-state.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
