@@ -46,10 +46,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install pinned Godot editor
         run: |
-          curl -fL --retry 3 -o godot.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          archive=Godot_v4.7.2-stable_linux.x86_64.zip
+          curl -fL --retry 3 -o "$archive" https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
           curl -fL --retry 3 -o SHA512-SUMS.txt https://github.com/godotengine/godot/releases/download/4.7.2-stable/SHA512-SUMS.txt
           sha512sum --ignore-missing --check SHA512-SUMS.txt
-          unzip -q godot.zip
+          unzip -q "$archive"
           install -m 0755 Godot_v4.7.2-stable_linux.x86_64 "$HOME/.local/bin/godot"
       - name: Parse the Godot project headlessly
         run: "$HOME/.local/bin/godot --headless --path apps/game --editor --quit --audio-driver Dummy"
