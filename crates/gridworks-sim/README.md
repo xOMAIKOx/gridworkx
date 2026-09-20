@@ -1,5 +1,5 @@
 # `gridworks-sim`
 
-This crate is the sole future home of canonical deterministic simulation mathematics. WP-001 provides only the versioned command/snapshot boundary and deterministic smoke tests.
+This crate is the sole canonical home of GRIDWORKS deterministic simulation mathematics. WP-002 provides versioned state/command contracts, explicit external-time advancement, a pinned seeded RNG, SHA-256 replay digests, typed errors and a generic proof domain.
 
-The boundary deliberately has no network, database, Godot, device-clock or service dependency. Authoritative timestamps and rules/content versions are inputs. Gameplay state transitions, seeded randomness, replay compatibility and GDExtension integration belong to their separately authorized work packages.
+The kernel has no network, database, Godot, filesystem, process-environment or device-clock dependency. Authoritative timestamps and rules/content versions are inputs. Facility/component mechanics, GDExtension integration and server validation remain separately authorized work-package boundaries.

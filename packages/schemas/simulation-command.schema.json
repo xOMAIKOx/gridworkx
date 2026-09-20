@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/simulation-command.schema.json",
+  "title": "GRIDWORKS versioned simulation command",
+  "type": "object",
+  "required": ["command_id", "command_type", "schema_version", "rules_version", "effective_time_ms", "idempotency_key", "payload"],
+  "properties": {
+    "command_id": {"type": "string", "minLength": 1},
+    "command_type": {"type": "string", "minLength": 1},
+    "schema_version": {"type": "string", "minLength": 1},
+    "rules_version": {"type": "string", "minLength": 1},
+    "effective_time_ms": {"type": "integer", "minimum": 0},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

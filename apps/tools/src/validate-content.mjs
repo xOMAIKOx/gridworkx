@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import process from "node:process";
 import Ajv from "ajv/dist/2020.js";
 
 const root = path.resolve(new URL("../../..", import.meta.url).pathname);
@@ -10,8 +9,22 @@ const semanticId = /^[a-z][a-z0-9]*(\.[a-z0-9][a-z0-9_-]*)+$/;
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 const ajv = new Ajv({ strict: true });
-for (const fileName of ["semantic-id.schema.json", "versioned-envelope.schema.json", "domain-catalog.schema.json", "content-manifest.schema.json"]) {
+for (const fileName of [
+  "semantic-id.schema.json",
+  "versioned-envelope.schema.json",
+  "domain-catalog.schema.json",
+  "content-manifest.schema.json",
+  "simulation-command.schema.json",
+  "simulation-state.schema.json",
+]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
+}
+
+const schemaCatalog = readJson(path.join(schemaRoot, "catalog.json"));
+for (const schema of schemaCatalog.schemas) {
+  if (!fs.existsSync(path.join(schemaRoot, schema.path))) {
+    throw new Error(`schema catalog: missing ${schema.path}`);
+  }
 }
 
 const validate = (schemaId, document, label) => {
