@@ -1362,3 +1362,42 @@ WP-001 must scaffold configuration/schema locations for:
 WP-002 simulation kernel must not read device wall time directly.
 
 WP-011 vertical slice must prove at least one timed operational transition and deterministic offline catch-up path using server-authoritative elapsed time.
+
+
+---
+
+# PART XXXI — ADR-009 WORLD / PRESENTATION / BOOTSTRAP INTEGRATION
+
+## 32. Accepted world and presentation architecture
+
+9. `docs/decisions/ADR-009_WORLD_BOOTSTRAP_PRESENTATION_RELEASE1.md`
+   - one logical global economy with differentiated regions;
+   - World Map / Portfolio Map / Site View / Operational Detail View;
+   - 2.5D isometric/oblique client presentation;
+   - stylized low-poly modular assets with 2D overlays;
+   - fixed/limited site camera rotations;
+   - functional animation;
+   - road/rail/ship/air transport economics;
+   - one-player bootstrap economy;
+   - Release-1 commercial-completeness posture;
+   - approximately 12+/13+ social architecture posture.
+
+## 32.1 WP-001 engineering implications
+
+WP-001 must establish repository/client/content scaffolding that can support:
+
+- world-map presentation module boundaries;
+- portfolio-map presentation module boundaries;
+- site/business presentation module boundaries;
+- operational-detail UI module boundaries;
+- modular visual asset/content namespaces;
+- semantic icon identifiers;
+- transport-mode schemas/contracts;
+- GRIDWORKS bootstrap-policy configuration;
+- moderation/social-policy configuration locations.
+
+WP-001 must not build production art, implement the world economy or implement full transport simulation. It establishes durable boundaries so later WPs do not improvise incompatible structures.
+
+## 32.2 Release-1 planning invariant
+
+The engineering work-package programme targets a complete Release 1 rather than an MVP. Individual WPs remain bounded and gated, but their combined end state must converge on the accepted Release-1 product baseline.
