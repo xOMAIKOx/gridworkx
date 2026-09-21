@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub mod graph;
+
+pub use graph::{
+    aggregate_plant_fixture, BottleneckEvidence, BottleneckReason, Component, DependencyEdge,
+    DependencyType, Facility, FacilityContext, FacilityEvaluation, GraphError, OperationalState,
+    System, SystemEvaluation, BASIS_POINTS_PER_WHOLE,
+};
+
 pub const SCHEMA_VERSION: &str = "schema-0.1.0";
 pub const RULES_VERSION: &str = "rules-0.1.0";
 pub const KERNEL_REVISION: &str = "kernel-0.2.0";
@@ -202,6 +210,8 @@ pub struct SimulationState {
     pub rng: DeterministicRng,
     pub proof: ProofState,
     pub executed_commands: Vec<ExecutedCommand>,
+    #[serde(default)]
+    pub facilities: Vec<Facility>,
 }
 
 impl SimulationState {
@@ -218,8 +228,17 @@ impl SimulationState {
                 last_pulse: None,
             },
             executed_commands: Vec::new(),
+            facilities: Vec::new(),
         };
         state.validate()?;
+        Ok(state)
+    }
+
+    pub fn with_facilities(seed: u64, facilities: Vec<Facility>) -> Result<Self, KernelError> {
+        let mut state = Self::new(seed)?;
+        graph::validate_facilities(&facilities)
+            .map_err(|error| KernelError::InvalidState(format!("facility graph: {error}")))?;
+        state.facilities = facilities;
         Ok(state)
     }
 
@@ -240,6 +259,8 @@ impl SimulationState {
             ));
         }
         self.rng.validate()?;
+        graph::validate_facilities(&self.facilities)
+            .map_err(|error| KernelError::InvalidState(format!("facility graph: {error}")))?;
         for (index, current) in self.executed_commands.iter().enumerate() {
             if current.command_id.is_empty() || current.idempotency_key.is_empty() {
                 return Err(KernelError::InvalidState(
@@ -258,13 +279,27 @@ impl SimulationState {
         Ok(())
     }
 
+    pub fn canonicalized(&self) -> Self {
+        let mut canonical = self.clone();
+        canonical.facilities = self
+            .facilities
+            .iter()
+            .map(Facility::canonicalized)
+            .collect();
+        canonical
+            .facilities
+            .sort_by(|left, right| left.facility_id.cmp(&right.facility_id));
+        canonical
+    }
+
     pub fn snapshot(&self) -> SimulationSnapshot {
+        let state = self.canonicalized();
         SimulationSnapshot {
             snapshot_type: SNAPSHOT_TYPE.to_owned(),
-            schema_version: self.schema_version.clone(),
-            rules_version: self.rules_version.clone(),
-            kernel_revision: self.kernel_revision.clone(),
-            state: self.clone(),
+            schema_version: state.schema_version.clone(),
+            rules_version: state.rules_version.clone(),
+            kernel_revision: state.kernel_revision.clone(),
+            state,
         }
     }
 
@@ -653,6 +688,18 @@ mod tests {
         let restored = SimulationState::from_json(&json).unwrap();
         assert_eq!(restored, state);
         assert_eq!(restored.digest(), state.digest());
+    }
+
+    #[test]
+    fn facility_graph_round_trip_preserves_evaluation_inputs() {
+        let state = SimulationState::with_facilities(41, vec![aggregate_plant_fixture()]).unwrap();
+        let json = state.to_json().unwrap();
+        let restored = SimulationState::from_json(&json).unwrap();
+        assert_eq!(restored, state.canonicalized());
+        assert_eq!(restored.digest(), state.digest());
+        let evaluation = restored.facilities[0].evaluate().unwrap();
+        assert_eq!(evaluation.effective_capacity, 100);
+        assert_eq!(evaluation.operational_state, OperationalState::Operational);
     }
 
     #[test]

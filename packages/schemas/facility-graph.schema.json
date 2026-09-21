@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/facility-graph.schema.json",
+  "title": "GRIDWORKS deterministic facility graph",
+  "$defs": {
+    "semanticId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$",
+      "minLength": 3,
+      "maxLength": 160
+    },
+    "context": {
+      "type": "object",
+      "required": ["world_id", "region_id", "site_id"],
+      "properties": {
+        "world_id": {"anyOf": [{"$ref": "#/$defs/semanticId"}, {"type": "null"}]},
+        "region_id": {"anyOf": [{"$ref": "#/$defs/semanticId"}, {"type": "null"}]},
+        "site_id": {"anyOf": [{"$ref": "#/$defs/semanticId"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "component": {
+      "type": "object",
+      "required": ["component_id", "component_type", "nominal_capacity", "available", "enabled", "capacity_factor_bps"],
+      "properties": {
+        "component_id": {"$ref": "#/$defs/semanticId"},
+        "component_type": {"type": "string", "minLength": 1},
+        "nominal_capacity": {"type": "integer", "minimum": 1},
+        "available": {"type": "boolean"},
+        "enabled": {"type": "boolean"},
+        "capacity_factor_bps": {"type": "integer", "minimum": 0, "maximum": 10000}
+      },
+      "additionalProperties": false
+    },
+    "system": {
+      "type": "object",
+      "required": ["system_id", "system_type", "nominal_capacity", "component_ids", "output_component_ids"],
+      "properties": {
+        "system_id": {"$ref": "#/$defs/semanticId"},
+        "system_type": {"type": "string", "minLength": 1},
+        "nominal_capacity": {"type": "integer", "minimum": 1},
+        "component_ids": {"type": "array", "items": {"$ref": "#/$defs/semanticId"}, "minItems": 1},
+        "output_component_ids": {"type": "array", "items": {"$ref": "#/$defs/semanticId"}}
+      },
+      "additionalProperties": false
+    },
+    "dependency": {
+      "type": "object",
+      "required": ["upstream_component_id", "downstream_component_id", "dependency_type", "path_group"],
+      "properties": {
+        "upstream_component_id": {"$ref": "#/$defs/semanticId"},
+        "downstream_component_id": {"$ref": "#/$defs/semanticId"},
+        "dependency_type": {"enum": ["HARD", "CAPACITY", "QUALITY", "RELIABILITY", "COST", "OPTIONAL"]},
+        "path_group": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "facility": {
+      "type": "object",
+      "required": ["facility_id", "facility_type", "context", "nominal_capacity", "systems", "components", "dependencies", "facility_output_component_ids"],
+      "properties": {
+        "facility_id": {"$ref": "#/$defs/semanticId"},
+        "facility_type": {"type": "string", "minLength": 1},
+        "context": {"$ref": "#/$defs/context"},
+        "nominal_capacity": {"type": "integer", "minimum": 1},
+        "systems": {"type": "array", "items": {"$ref": "#/$defs/system"}, "minItems": 1},
+        "components": {"type": "array", "items": {"$ref": "#/$defs/component"}, "minItems": 1},
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/dependency"}},
+        "facility_output_component_ids": {"type": "array", "items": {"$ref": "#/$defs/semanticId"}, "minItems": 1}
+      },
+      "additionalProperties": false
+    },
+    "facilities": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/facility"}
+    }
+  }
+}
