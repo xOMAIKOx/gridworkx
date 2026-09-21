@@ -51,3 +51,13 @@ Failure effects are projected into the existing WP-003 `Facility::evaluate()` pa
 Failure vectors are canonicalized by stable IDs before snapshots/digests. Fault/evidence/diagnosis lookup is linear over bounded fixture-scale vectors; graph re-evaluation remains the existing ordered topological evaluation, `O(V + E)` after projection. No floating point, wall clock, filesystem, network, database, hash iteration or thread scheduling is used.
 
 Canonical schemas were added for failure state and failure command payloads. Host prerequisites and runtime dependencies were unchanged.
+
+## Remediation contract evidence
+
+The remediation preserves the WP-004 boundaries while tightening four contracts:
+
+- Low-capability (`Unknown`) observations now carry no factual condition value, so failed information acquisition cannot leak hidden telemetry.
+- `Repair` requires an active, same-component fault instance whose definition permits repair; missing, mismatched and resolved targets reject without mutation.
+- Diagnosis references validate component and fault-type consistency both at command time and persisted-state validation; resolved bound instances are rejected explicitly.
+- The failure-command schema now has strict per-action `oneOf` contracts for ActivateFault, Inspect, Test, Diagnose and Intervene, including required fields, semantic IDs, basis-point bounds, nullable optionals and `additionalProperties: false`.
+- The validation tool exercises the actual `faults.json` content configuration and includes valid/malformed failure-command fixtures.

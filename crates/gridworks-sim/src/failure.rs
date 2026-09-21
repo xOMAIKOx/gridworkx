@@ -389,6 +389,23 @@ impl FailureState {
             validate_identifier(&diagnosis.component_id)?;
             validate_identifier(&diagnosis.candidate_fault_type_id)?;
             validate_confidence(diagnosis.confidence_bps)?;
+            if let Some(fault_instance_id) = &diagnosis.fault_instance_id {
+                let fault = self
+                    .faults
+                    .iter()
+                    .find(|fault| &fault.fault_instance_id == fault_instance_id)
+                    .ok_or_else(|| {
+                        FailureError::InvalidState("diagnosis references unknown fault".to_owned())
+                    })?;
+                if fault.component_id != diagnosis.component_id
+                    || fault.fault_type_id != diagnosis.candidate_fault_type_id
+                    || fault.status == FaultStatus::Resolved
+                {
+                    return Err(FailureError::InvalidState(
+                        "persisted diagnosis fault reference is inconsistent".to_owned(),
+                    ));
+                }
+            }
             if !diagnoses.insert(&diagnosis.diagnosis_id) {
                 return Err(FailureError::DuplicateDiagnosis(
                     diagnosis.diagnosis_id.clone(),
@@ -721,10 +738,13 @@ impl FailureState {
             observation,
             source,
             effective_time_ms: context.effective_time_ms,
-            factual_value_bps: self
-                .condition_for(component_id)
-                .ok()
-                .map(|state| state.condition_bps),
+            factual_value_bps: (observation != Observation::Unknown)
+                .then(|| {
+                    self.condition_for(component_id)
+                        .ok()
+                        .map(|state| state.condition_bps)
+                })
+                .flatten(),
         });
         Ok(FailureEvent::EvidenceObserved {
             evidence_id: evidence_id.to_owned(),
@@ -814,11 +834,20 @@ impl FailureState {
             DiagnosisStatus::Unresolved
         };
         if let Some(fault_instance_id) = fault_instance_id {
-            if !self.faults.iter().any(|fault| {
-                &fault.fault_instance_id == fault_instance_id && fault.component_id == component_id
-            }) {
-                return Err(FailureError::UnknownFaultInstance(
-                    fault_instance_id.clone(),
+            let fault = self
+                .faults
+                .iter()
+                .find(|fault| &fault.fault_instance_id == fault_instance_id)
+                .ok_or_else(|| FailureError::UnknownFaultInstance(fault_instance_id.clone()))?;
+            if fault.component_id != component_id || fault.fault_type_id != candidate_fault_type_id
+            {
+                return Err(FailureError::InvalidState(
+                    "diagnosis fault instance does not match component/type".to_owned(),
+                ));
+            }
+            if fault.status == FaultStatus::Resolved {
+                return Err(FailureError::InterventionPrecondition(
+                    "diagnosis cannot bind a resolved fault".to_owned(),
                 ));
             }
         }
@@ -852,6 +881,11 @@ impl FailureState {
     ) -> Result<FailureEvent, FailureError> {
         validate_identifier(intervention_id)?;
         find_component_type(context.facilities, component_id)?;
+        if kind == InterventionKind::Repair && fault_instance_id.is_none() {
+            return Err(FailureError::InterventionPrecondition(
+                "repair requires a fault instance".to_owned(),
+            ));
+        }
         if let Some(fault_instance_id) = fault_instance_id {
             let fault = self
                 .faults
@@ -864,6 +898,11 @@ impl FailureState {
             if fault.status == FaultStatus::Resolved {
                 return Err(FailureError::AlreadyResolved(
                     fault.fault_instance_id.clone(),
+                ));
+            }
+            if fault.status != FaultStatus::Active {
+                return Err(FailureError::InterventionPrecondition(
+                    "intervention requires an active fault".to_owned(),
                 ));
             }
             let definition = self
@@ -1222,6 +1261,24 @@ mod tests {
             )
             .unwrap();
         assert_eq!(failure.evidence[0].observation, Observation::Observed);
+        let before_invalid_repair = failure.clone();
+        assert!(matches!(
+            failure.apply(
+                &facilities,
+                &FailureCommand::Intervene {
+                    intervention_id: "intervention.invalid_repair".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    kind: InterventionKind::Repair,
+                    fault_instance_id: None,
+                    derate_bps: None,
+                    bypass: None,
+                },
+                0,
+                RULES_VERSION,
+            ),
+            Err(FailureError::InterventionPrecondition(_))
+        ));
+        assert_eq!(failure, before_invalid_repair);
         failure
             .apply(
                 &facilities,
@@ -1304,6 +1361,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(failure.evidence[0].observation, Observation::Unknown);
+        assert_eq!(failure.evidence[0].factual_value_bps, None);
         failure
             .apply(
                 &facilities,
@@ -1321,6 +1379,119 @@ mod tests {
             .unwrap();
         assert_eq!(failure.diagnoses[0].status, DiagnosisStatus::Unresolved);
         assert!(failure.diagnoses[0].confidence_bps < 8_000);
+    }
+
+    #[test]
+    fn repair_rejects_wrong_component_and_already_resolved_fault() {
+        let facilities = facilities();
+        let mut failure = state();
+        failure
+            .apply(
+                &facilities,
+                &FailureCommand::ActivateFault {
+                    fault_instance_id: "fault.instance.repair_target".to_owned(),
+                    fault_type_id: "fault.motor_bearing_seizure".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    severity_bps: 10_000,
+                },
+                0,
+                RULES_VERSION,
+            )
+            .unwrap();
+        assert!(matches!(
+            failure.apply(
+                &facilities,
+                &FailureCommand::Intervene {
+                    intervention_id: "intervention.wrong_component".to_owned(),
+                    component_id: "component.crusher".to_owned(),
+                    kind: InterventionKind::Repair,
+                    fault_instance_id: Some("fault.instance.repair_target".to_owned()),
+                    derate_bps: None,
+                    bypass: None,
+                },
+                0,
+                RULES_VERSION,
+            ),
+            Err(FailureError::UnknownFaultInstance(_))
+        ));
+        failure
+            .apply(
+                &facilities,
+                &FailureCommand::Intervene {
+                    intervention_id: "intervention.valid_repair".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    kind: InterventionKind::Repair,
+                    fault_instance_id: Some("fault.instance.repair_target".to_owned()),
+                    derate_bps: None,
+                    bypass: None,
+                },
+                0,
+                RULES_VERSION,
+            )
+            .unwrap();
+        assert!(matches!(
+            failure.apply(
+                &facilities,
+                &FailureCommand::Intervene {
+                    intervention_id: "intervention.repeated_repair".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    kind: InterventionKind::Repair,
+                    fault_instance_id: Some("fault.instance.repair_target".to_owned()),
+                    derate_bps: None,
+                    bypass: None,
+                },
+                0,
+                RULES_VERSION,
+            ),
+            Err(FailureError::AlreadyResolved(_))
+        ));
+    }
+
+    #[test]
+    fn diagnosis_rejects_mismatched_bound_fault_instance() {
+        let facilities = facilities();
+        let mut failure = state();
+        failure
+            .apply(
+                &facilities,
+                &FailureCommand::ActivateFault {
+                    fault_instance_id: "fault.instance.motor_for_diagnosis".to_owned(),
+                    fault_type_id: "fault.motor_bearing_seizure".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    severity_bps: 10_000,
+                },
+                0,
+                RULES_VERSION,
+            )
+            .unwrap();
+        failure
+            .apply(
+                &facilities,
+                &FailureCommand::Inspect {
+                    evidence_id: "evidence.motor_for_diagnosis".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    diagnostic_capability_bps: 10_000,
+                },
+                0,
+                RULES_VERSION,
+            )
+            .unwrap();
+        assert!(matches!(
+            failure.apply(
+                &facilities,
+                &FailureCommand::Diagnose {
+                    diagnosis_id: "diagnosis.mismatched_fault".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    candidate_fault_type_id: "fault.worn_belt".to_owned(),
+                    fault_instance_id: Some("fault.instance.motor_for_diagnosis".to_owned()),
+                    evidence_ids: vec!["evidence.motor_for_diagnosis".to_owned()],
+                    diagnostic_capability_bps: 10_000,
+                },
+                0,
+                RULES_VERSION,
+            ),
+            Err(FailureError::InvalidState(_))
+        ));
     }
 
     #[test]

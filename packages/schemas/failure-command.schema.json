@@ -6,14 +6,129 @@
   "required": ["failure"],
   "properties": {
     "failure": {
+      "oneOf": [
+        {"$ref": "#/$defs/activateFault"},
+        {"$ref": "#/$defs/inspect"},
+        {"$ref": "#/$defs/test"},
+        {"$ref": "#/$defs/diagnose"},
+        {"$ref": "#/$defs/intervene"}
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$", "minLength": 3, "maxLength": 160},
+    "bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+    "bypass": {
+      "type": "object",
+      "required": ["bypass_id", "upstream_component_id", "downstream_component_id", "dependency_type", "path_group"],
+      "properties": {
+        "bypass_id": {"$ref": "#/$defs/id"},
+        "upstream_component_id": {"$ref": "#/$defs/id"},
+        "downstream_component_id": {"$ref": "#/$defs/id"},
+        "dependency_type": {"enum": ["HARD", "CAPACITY", "QUALITY", "RELIABILITY", "COST", "OPTIONAL"]},
+        "path_group": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "intervention": {"enum": ["Inspect", "Test", "Clean", "Calibrate", "Lubricate", "Patch", "Repair", "Rebuild", "Replace", "Bypass", "Reroute", "Derate", "Shutdown", "Restore", "Outsource", "SalvageDismantle"]},
+    "activateFault": {
       "type": "object",
       "required": ["action", "data"],
       "properties": {
-        "action": {"enum": ["ActivateFault", "Inspect", "Test", "Diagnose", "Intervene"]},
-        "data": {"type": "object"}
+        "action": {"const": "ActivateFault"},
+        "data": {
+          "type": "object",
+          "required": ["fault_instance_id", "fault_type_id", "component_id", "severity_bps"],
+          "properties": {
+            "fault_instance_id": {"$ref": "#/$defs/id"},
+            "fault_type_id": {"$ref": "#/$defs/id"},
+            "component_id": {"$ref": "#/$defs/id"},
+            "severity_bps": {"$ref": "#/$defs/bps"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "inspect": {
+      "type": "object",
+      "required": ["action", "data"],
+      "properties": {
+        "action": {"const": "Inspect"},
+        "data": {
+          "type": "object",
+          "required": ["evidence_id", "component_id", "diagnostic_capability_bps"],
+          "properties": {
+            "evidence_id": {"$ref": "#/$defs/id"},
+            "component_id": {"$ref": "#/$defs/id"},
+            "diagnostic_capability_bps": {"$ref": "#/$defs/bps"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "test": {
+      "type": "object",
+      "required": ["action", "data"],
+      "properties": {
+        "action": {"const": "Test"},
+        "data": {
+          "type": "object",
+          "required": ["evidence_id", "component_id", "symptom_id", "diagnostic_capability_bps"],
+          "properties": {
+            "evidence_id": {"$ref": "#/$defs/id"},
+            "component_id": {"$ref": "#/$defs/id"},
+            "symptom_id": {"$ref": "#/$defs/id"},
+            "diagnostic_capability_bps": {"$ref": "#/$defs/bps"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "diagnose": {
+      "type": "object",
+      "required": ["action", "data"],
+      "properties": {
+        "action": {"const": "Diagnose"},
+        "data": {
+          "type": "object",
+          "required": ["diagnosis_id", "component_id", "candidate_fault_type_id", "fault_instance_id", "evidence_ids", "diagnostic_capability_bps"],
+          "properties": {
+            "diagnosis_id": {"$ref": "#/$defs/id"},
+            "component_id": {"$ref": "#/$defs/id"},
+            "candidate_fault_type_id": {"$ref": "#/$defs/id"},
+            "fault_instance_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+            "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+            "diagnostic_capability_bps": {"$ref": "#/$defs/bps"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "intervene": {
+      "type": "object",
+      "required": ["action", "data"],
+      "properties": {
+        "action": {"const": "Intervene"},
+        "data": {
+          "type": "object",
+          "required": ["intervention_id", "component_id", "kind", "fault_instance_id", "derate_bps", "bypass"],
+          "properties": {
+            "intervention_id": {"$ref": "#/$defs/id"},
+            "component_id": {"$ref": "#/$defs/id"},
+            "kind": {"$ref": "#/$defs/intervention"},
+            "fault_instance_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+            "derate_bps": {"anyOf": [{"$ref": "#/$defs/bps"}, {"type": "null"}]},
+            "bypass": {"anyOf": [{"$ref": "#/$defs/bypass"}, {"type": "null"}]}
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     }
-  },
-  "additionalProperties": false
+  }
 }
