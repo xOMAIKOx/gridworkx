@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/fault-definitions.schema.json",
+  "title": "GRIDWORKS data-driven fault definitions",
+  "type": "object",
+  "required": ["config_id", "rules_version", "definitions"],
+  "properties": {
+    "config_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$", "minLength": 3, "maxLength": 160},
+    "rules_version": {"type": "string", "minLength": 1},
+    "definitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["fault_type_id", "component_types", "default_severity_bps", "capacity_factor_bps", "availability_effect", "symptom_ids", "permitted_interventions"],
+        "properties": {
+          "fault_type_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$", "minLength": 3, "maxLength": 160},
+          "component_types": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+          "default_severity_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+          "capacity_factor_bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+          "availability_effect": {"type": "boolean"},
+          "symptom_ids": {"type": "array", "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$", "minLength": 3, "maxLength": 160}, "minItems": 1},
+          "permitted_interventions": {"type": "array", "items": {"enum": ["Inspect", "Test", "Clean", "Calibrate", "Lubricate", "Patch", "Repair", "Rebuild", "Replace", "Bypass", "Reroute", "Derate", "Shutdown", "Restore", "Outsource", "SalvageDismantle"]}, "minItems": 1}
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/failure-state.schema.json",
+  "title": "GRIDWORKS causal failure and diagnosis state",
+  "type": "object",
+  "required": ["fault_definitions", "component_conditions", "faults", "symptoms", "evidence", "diagnoses"],
+  "properties": {
+    "fault_definitions": {"type": "array", "items": {"$ref": "#/$defs/faultDefinition"}},
+    "component_conditions": {"type": "array", "items": {"$ref": "#/$defs/componentCondition"}},
+    "faults": {"type": "array", "items": {"$ref": "#/$defs/faultInstance"}},
+    "symptoms": {"type": "array", "items": {"$ref": "#/$defs/symptom"}},
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+    "diagnoses": {"type": "array", "items": {"$ref": "#/$defs/diagnosis"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$", "minLength": 3, "maxLength": 160},
+    "bps": {"type": "integer", "minimum": 0, "maximum": 10000},
+    "intervention": {"enum": ["Inspect", "Test", "Clean", "Calibrate", "Lubricate", "Patch", "Repair", "Rebuild", "Replace", "Bypass", "Reroute", "Derate", "Shutdown", "Restore", "Outsource", "SalvageDismantle"]},
+    "faultDefinition": {
+      "type": "object",
+      "required": ["fault_type_id", "component_types", "default_severity_bps", "capacity_factor_bps", "availability_effect", "symptom_ids", "permitted_interventions"],
+      "properties": {
+        "fault_type_id": {"$ref": "#/$defs/id"},
+        "component_types": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "default_severity_bps": {"$ref": "#/$defs/bps"},
+        "capacity_factor_bps": {"$ref": "#/$defs/bps"},
+        "availability_effect": {"type": "boolean"},
+        "symptom_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "permitted_interventions": {"type": "array", "items": {"$ref": "#/$defs/intervention"}}
+      },
+      "additionalProperties": false
+    },
+    "componentCondition": {
+      "type": "object",
+      "required": ["component_id", "condition_bps", "derate_bps", "deliberate_shutdown", "bypasses"],
+      "properties": {
+        "component_id": {"$ref": "#/$defs/id"},
+        "condition_bps": {"$ref": "#/$defs/bps"},
+        "derate_bps": {"$ref": "#/$defs/bps"},
+        "deliberate_shutdown": {"type": "boolean"},
+        "bypasses": {"type": "array", "items": {"$ref": "#/$defs/bypass"}}
+      },
+      "additionalProperties": false
+    },
+    "bypass": {
+      "type": "object",
+      "required": ["bypass_id", "upstream_component_id", "downstream_component_id", "dependency_type", "path_group", "active"],
+      "properties": {
+        "bypass_id": {"$ref": "#/$defs/id"},
+        "upstream_component_id": {"$ref": "#/$defs/id"},
+        "downstream_component_id": {"$ref": "#/$defs/id"},
+        "dependency_type": {"enum": ["HARD", "CAPACITY", "QUALITY", "RELIABILITY", "COST", "OPTIONAL"]},
+        "path_group": {"anyOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+        "active": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "faultInstance": {
+      "type": "object",
+      "required": ["fault_instance_id", "fault_type_id", "component_id", "severity_bps", "status", "onset_time_ms", "symptom_ids", "rules_version"],
+      "properties": {
+        "fault_instance_id": {"$ref": "#/$defs/id"},
+        "fault_type_id": {"$ref": "#/$defs/id"},
+        "component_id": {"$ref": "#/$defs/id"},
+        "severity_bps": {"$ref": "#/$defs/bps"},
+        "status": {"enum": ["Latent", "Active", "Resolved"]},
+        "onset_time_ms": {"type": "integer", "minimum": 0},
+        "symptom_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "rules_version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "symptom": {
+      "type": "object",
+      "required": ["observation_id", "symptom_id", "component_id", "observation", "source", "effective_time_ms"],
+      "properties": {
+        "observation_id": {"$ref": "#/$defs/id"},
+        "symptom_id": {"$ref": "#/$defs/id"},
+        "component_id": {"$ref": "#/$defs/id"},
+        "observation": {"enum": ["Observed", "Absent", "Unknown"]},
+        "source": {"enum": ["VisualInspection", "Measurement", "Telemetry", "ComponentState"]},
+        "effective_time_ms": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_id", "symptom_id", "component_id", "observation_id", "observation", "source", "effective_time_ms", "factual_value_bps"],
+      "properties": {
+        "evidence_id": {"$ref": "#/$defs/id"},
+        "symptom_id": {"$ref": "#/$defs/id"},
+        "component_id": {"$ref": "#/$defs/id"},
+        "observation_id": {"$ref": "#/$defs/id"},
+        "observation": {"enum": ["Observed", "Absent", "Unknown"]},
+        "source": {"enum": ["VisualInspection", "Measurement", "Telemetry", "ComponentState"]},
+        "effective_time_ms": {"type": "integer", "minimum": 0},
+        "factual_value_bps": {"anyOf": [{"$ref": "#/$defs/bps"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "diagnosis": {
+      "type": "object",
+      "required": ["diagnosis_id", "component_id", "candidate_fault_type_id", "fault_instance_id", "evidence_ids", "confidence_bps", "status"],
+      "properties": {
+        "diagnosis_id": {"$ref": "#/$defs/id"},
+        "component_id": {"$ref": "#/$defs/id"},
+        "candidate_fault_type_id": {"$ref": "#/$defs/id"},
+        "fault_instance_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "evidence_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "confidence_bps": {"$ref": "#/$defs/bps"},
+        "status": {"enum": ["Unresolved", "Confirmed", "Rejected"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -11,7 +11,7 @@
     "kernel_revision": {"type": "string", "minLength": 1},
     "state": {
       "type": "object",
-      "required": ["schema_version", "rules_version", "kernel_revision", "operational_time_ms", "rng", "proof", "executed_commands", "facilities"],
+      "required": ["schema_version", "rules_version", "kernel_revision", "operational_time_ms", "rng", "proof", "executed_commands", "facilities", "failure"],
       "properties": {
         "schema_version": {"type": "string", "minLength": 1},
         "rules_version": {"type": "string", "minLength": 1},
@@ -50,7 +50,8 @@
             "additionalProperties": false
           }
         },
-        "facilities": {"$ref": "facility-graph.schema.json#/$defs/facilities"}
+        "facilities": {"$ref": "facility-graph.schema.json#/$defs/facilities"},
+        "failure": {"$ref": "failure-state.schema.json"}
       },
       "additionalProperties": false
     }
