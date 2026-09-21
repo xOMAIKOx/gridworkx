@@ -57,7 +57,7 @@
     },
     "facility": {
       "type": "object",
-      "required": ["facility_id", "facility_type", "context", "nominal_capacity", "systems", "components", "dependencies"],
+      "required": ["facility_id", "facility_type", "context", "nominal_capacity", "systems", "components", "dependencies", "facility_output_component_ids"],
       "properties": {
         "facility_id": {"$ref": "#/$defs/semanticId"},
         "facility_type": {"type": "string", "minLength": 1},
@@ -65,7 +65,8 @@
         "nominal_capacity": {"type": "integer", "minimum": 1},
         "systems": {"type": "array", "items": {"$ref": "#/$defs/system"}, "minItems": 1},
         "components": {"type": "array", "items": {"$ref": "#/$defs/component"}, "minItems": 1},
-        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/dependency"}}
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/dependency"}},
+        "facility_output_component_ids": {"type": "array", "items": {"$ref": "#/$defs/semanticId"}, "minItems": 1}
       },
       "additionalProperties": false
     },

@@ -168,6 +168,7 @@ pub struct Facility {
     pub systems: Vec<System>,
     pub components: Vec<Component>,
     pub dependencies: Vec<DependencyEdge>,
+    pub facility_output_component_ids: Vec<String>,
 }
 
 impl Facility {
@@ -187,7 +188,13 @@ impl Facility {
             systems,
             components,
             dependencies,
+            facility_output_component_ids: Vec::new(),
         }
+    }
+
+    pub fn with_outputs(mut self, output_component_ids: Vec<String>) -> Self {
+        self.facility_output_component_ids = output_component_ids;
+        self
     }
 
     pub fn validate(&self) -> Result<(), GraphError> {
@@ -238,6 +245,26 @@ impl Facility {
                 return Err(GraphError::DuplicateComponentId(
                     component.component_id.clone(),
                 ));
+            }
+        }
+
+        if self.facility_output_component_ids.is_empty() {
+            return Err(GraphError::InvalidGraphState(
+                "facility output components are required".to_owned(),
+            ));
+        }
+        let mut facility_outputs = BTreeSet::new();
+        for component_id in &self.facility_output_component_ids {
+            if !component_map.contains_key(component_id) {
+                return Err(GraphError::MissingReference {
+                    kind: "facility output component",
+                    id: component_id.clone(),
+                });
+            }
+            if !facility_outputs.insert(component_id) {
+                return Err(GraphError::InvalidGraphState(format!(
+                    "facility repeats output component {component_id}"
+                )));
             }
         }
 
@@ -371,7 +398,37 @@ impl Facility {
         Ok(())
     }
 
+    pub fn canonicalized(&self) -> Self {
+        let mut canonical = self.clone();
+        canonical.facility_output_component_ids.sort();
+        canonical
+            .components
+            .sort_by(|left, right| left.component_id.cmp(&right.component_id));
+        for system in &mut canonical.systems {
+            system.component_ids.sort();
+            system.output_component_ids.sort();
+        }
+        canonical
+            .systems
+            .sort_by(|left, right| left.system_id.cmp(&right.system_id));
+        canonical.dependencies.sort_by(|left, right| {
+            left.upstream_component_id
+                .cmp(&right.upstream_component_id)
+                .then(
+                    left.downstream_component_id
+                        .cmp(&right.downstream_component_id),
+                )
+                .then(left.dependency_type.cmp(&right.dependency_type))
+                .then(left.path_group.cmp(&right.path_group))
+        });
+        canonical
+    }
+
     pub fn evaluate(&self) -> Result<FacilityEvaluation, GraphError> {
+        self.canonicalized().evaluate_canonical()
+    }
+
+    fn evaluate_canonical(&self) -> Result<FacilityEvaluation, GraphError> {
         self.validate()?;
         let component_map: BTreeMap<_, _> = self
             .components
@@ -487,16 +544,34 @@ impl Facility {
             });
         }
 
-        let effective_capacity = system_evaluations
+        let output_capacity = self
+            .facility_output_component_ids
             .iter()
-            .map(|evaluation| evaluation.effective_capacity)
-            .min()
-            .unwrap_or(0)
-            .min(self.nominal_capacity);
-        let mut bottlenecks = system_evaluations
+            .map(|component_id| component_evaluations[component_id].effective_capacity)
+            .max()
+            .unwrap_or(0);
+        let effective_capacity = output_capacity.min(self.nominal_capacity);
+        let mut output_path_components = BTreeSet::new();
+        for output_component_id in &self.facility_output_component_ids {
+            collect_dependency_ancestors(
+                output_component_id,
+                &incoming,
+                &mut output_path_components,
+            );
+        }
+        let mut bottlenecks = output_path_components
             .iter()
-            .filter(|evaluation| evaluation.effective_capacity == effective_capacity)
-            .flat_map(|evaluation| evaluation.bottlenecks.clone())
+            .filter_map(|component_id| {
+                let component = component_map[component_id];
+                let evaluation = &component_evaluations[component_id];
+                (evaluation.effective_capacity == effective_capacity
+                    && effective_capacity < component.nominal_capacity)
+                    .then(|| BottleneckEvidence {
+                        component_id: (*component_id).clone(),
+                        reason: bottleneck_reason(component, evaluation),
+                        effective_capacity,
+                    })
+            })
             .collect::<Vec<_>>();
         bottlenecks.sort_by(|left, right| {
             left.component_id
@@ -506,18 +581,14 @@ impl Facility {
         bottlenecks.dedup();
         if bottlenecks.is_empty() && effective_capacity < self.nominal_capacity {
             bottlenecks.push(BottleneckEvidence {
-                component_id: self
-                    .systems
-                    .first()
-                    .and_then(|system| system.component_ids.first())
-                    .cloned()
-                    .unwrap_or_default(),
+                component_id: self.facility_output_component_ids[0].clone(),
                 reason: BottleneckReason::SystemCapacity,
                 effective_capacity,
             });
         }
         Ok(FacilityEvaluation {
             facility_id: self.facility_id.clone(),
+            output_component_ids: self.facility_output_component_ids.clone(),
             operational_state: operational_state(effective_capacity, self.nominal_capacity),
             nominal_capacity: self.nominal_capacity,
             effective_capacity,
@@ -613,6 +684,7 @@ pub struct SystemEvaluation {
 #[serde(deny_unknown_fields)]
 pub struct FacilityEvaluation {
     pub facility_id: String,
+    pub output_component_ids: Vec<String>,
     pub operational_state: OperationalState,
     pub nominal_capacity: u64,
     pub effective_capacity: u64,
@@ -645,18 +717,46 @@ pub fn validate_facilities(facilities: &[Facility]) -> Result<(), GraphError> {
     validate_facility_ids(facilities)
 }
 
-fn validate_id(kind: &'static str, id: &str) -> Result<(), GraphError> {
-    let valid = !id.is_empty()
-        && id
+pub fn is_valid_semantic_id(id: &str) -> bool {
+    if !(3..=160).contains(&id.len()) || !id.is_ascii() {
+        return false;
+    }
+    let mut segments = id.split('.');
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    if first.is_empty()
+        || !first
             .chars()
             .next()
             .is_some_and(|character| character.is_ascii_lowercase())
-        && id.chars().all(|character| {
-            character.is_ascii_lowercase()
-                || character.is_ascii_digit()
-                || "._-".contains(character)
-        });
-    if valid {
+        || !first
+            .chars()
+            .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit())
+    {
+        return false;
+    }
+    let mut has_namespace = false;
+    for segment in segments {
+        has_namespace = true;
+        if segment.is_empty()
+            || !segment.chars().next().is_some_and(|character| {
+                character.is_ascii_lowercase() || character.is_ascii_digit()
+            })
+            || !segment.chars().all(|character| {
+                character.is_ascii_lowercase()
+                    || character.is_ascii_digit()
+                    || "_-".contains(character)
+            })
+        {
+            return false;
+        }
+    }
+    has_namespace
+}
+
+fn validate_id(kind: &'static str, id: &str) -> Result<(), GraphError> {
+    if is_valid_semantic_id(id) {
         Ok(())
     } else {
         Err(GraphError::InvalidId {
@@ -685,6 +785,21 @@ fn local_capacity(component: &Component) -> Result<u64, GraphError> {
         .checked_mul(u64::from(component.capacity_factor_bps))
         .map(|capacity| capacity / BASIS_POINTS_PER_WHOLE)
         .ok_or(GraphError::ArithmeticOverflow)
+}
+
+fn collect_dependency_ancestors(
+    component_id: &str,
+    incoming: &BTreeMap<String, Vec<&DependencyEdge>>,
+    visited: &mut BTreeSet<String>,
+) {
+    if !visited.insert(component_id.to_owned()) {
+        return;
+    }
+    if let Some(edges) = incoming.get(component_id) {
+        for edge in edges {
+            collect_dependency_ancestors(&edge.upstream_component_id, incoming, visited);
+        }
+    }
 }
 
 fn incoming_edges(facility: &Facility) -> BTreeMap<String, Vec<&DependencyEdge>> {
@@ -872,6 +987,7 @@ pub fn aggregate_plant_fixture() -> Facility {
         components,
         dependencies,
     )
+    .with_outputs(vec!["component.finished_stockpile".to_owned()])
 }
 
 #[cfg(test)]
@@ -914,6 +1030,35 @@ mod tests {
             .bottlenecks
             .iter()
             .any(|evidence| evidence.component_id == "component.crusher"));
+    }
+
+    #[test]
+    fn unrelated_auxiliary_system_does_not_throttle_declared_output() {
+        let mut facility = fixture();
+        let mut auxiliary = Component::new("component.auxiliary_pump", "pump", 100);
+        auxiliary.capacity_factor_bps = 100;
+        facility.components.push(auxiliary);
+        facility.systems.push(
+            System::new(
+                "system.auxiliary",
+                "utility",
+                100,
+                vec!["component.auxiliary_pump".to_owned()],
+            )
+            .with_outputs(vec!["component.auxiliary_pump".to_owned()]),
+        );
+        let evaluation = facility.evaluate().unwrap();
+        assert_eq!(evaluation.effective_capacity, 100);
+        assert_eq!(evaluation.operational_state, OperationalState::Operational);
+        assert_eq!(
+            evaluation
+                .system_evaluations
+                .iter()
+                .find(|system| system.system_id == "system.auxiliary")
+                .unwrap()
+                .effective_capacity,
+            1
+        );
     }
 
     #[test]
@@ -989,7 +1134,8 @@ mod tests {
             vec![system],
             components,
             dependencies,
-        );
+        )
+        .with_outputs(vec!["component.output".to_owned()]);
         facility.components[0].available = false;
         let evaluation = facility.evaluate().unwrap();
         assert_eq!(evaluation.effective_capacity, 100);
@@ -1057,17 +1203,50 @@ mod tests {
     }
 
     #[test]
+    fn semantic_id_contract_requires_namespaces_and_schema_bounds() {
+        for valid in [
+            "facility.aggregate_plant",
+            "component.feed_conveyor.v1",
+            "a.b",
+        ] {
+            assert!(is_valid_semantic_id(valid), "expected valid ID: {valid}");
+        }
+        for invalid in [
+            "facility",
+            "Facility.aggregate",
+            "facility.",
+            "facility.item!",
+            "a..b",
+        ] {
+            assert!(
+                !is_valid_semantic_id(invalid),
+                "expected invalid ID: {invalid}"
+            );
+        }
+        let too_long = format!("a.{}", "b".repeat(159));
+        assert!(!is_valid_semantic_id(&too_long));
+    }
+
+    #[test]
     fn graph_serialization_and_evaluation_are_deterministic() {
         let first = fixture();
         let mut second = fixture();
         second.components.reverse();
+        second.systems.reverse();
         second.systems[0].component_ids.reverse();
+        second.systems[0].output_component_ids.reverse();
         second.dependencies.reverse();
-        let first_json = serde_json::to_string(&first).unwrap();
-        let second_json = serde_json::to_string(&second).unwrap();
+        second.facility_output_component_ids.reverse();
         let first_evaluation = first.evaluate().unwrap();
         let second_evaluation = second.evaluate().unwrap();
         assert_eq!(first_evaluation, second_evaluation);
-        assert_ne!(first_json, second_json);
+
+        let first_state = crate::SimulationState::with_facilities(7, vec![first]).unwrap();
+        let second_state = crate::SimulationState::with_facilities(7, vec![second]).unwrap();
+        assert_eq!(
+            first_state.to_json().unwrap(),
+            second_state.to_json().unwrap()
+        );
+        assert_eq!(first_state.digest(), second_state.digest());
     }
 }

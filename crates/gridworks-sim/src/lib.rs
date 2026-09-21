@@ -279,13 +279,27 @@ impl SimulationState {
         Ok(())
     }
 
+    pub fn canonicalized(&self) -> Self {
+        let mut canonical = self.clone();
+        canonical.facilities = self
+            .facilities
+            .iter()
+            .map(Facility::canonicalized)
+            .collect();
+        canonical
+            .facilities
+            .sort_by(|left, right| left.facility_id.cmp(&right.facility_id));
+        canonical
+    }
+
     pub fn snapshot(&self) -> SimulationSnapshot {
+        let state = self.canonicalized();
         SimulationSnapshot {
             snapshot_type: SNAPSHOT_TYPE.to_owned(),
-            schema_version: self.schema_version.clone(),
-            rules_version: self.rules_version.clone(),
-            kernel_revision: self.kernel_revision.clone(),
-            state: self.clone(),
+            schema_version: state.schema_version.clone(),
+            rules_version: state.rules_version.clone(),
+            kernel_revision: state.kernel_revision.clone(),
+            state,
         }
     }
 
@@ -681,7 +695,7 @@ mod tests {
         let state = SimulationState::with_facilities(41, vec![aggregate_plant_fixture()]).unwrap();
         let json = state.to_json().unwrap();
         let restored = SimulationState::from_json(&json).unwrap();
-        assert_eq!(restored, state);
+        assert_eq!(restored, state.canonicalized());
         assert_eq!(restored.digest(), state.digest());
         let evaluation = restored.facilities[0].evaluate().unwrap();
         assert_eq!(evaluation.effective_capacity, 100);
