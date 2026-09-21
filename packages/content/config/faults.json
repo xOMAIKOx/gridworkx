@@ -1,0 +1,33 @@
+{
+  "config_id": "fault.definitions.initial",
+  "rules_version": "rules-0.1.0",
+  "definitions": [
+    {
+      "fault_type_id": "fault.motor_bearing_seizure",
+      "component_types": ["conveyor"],
+      "default_severity_bps": 10000,
+      "capacity_factor_bps": 0,
+      "availability_effect": true,
+      "symptom_ids": ["symptom.abnormal_vibration", "symptom.no_rotation"],
+      "permitted_interventions": ["Repair", "Replace", "Bypass"]
+    },
+    {
+      "fault_type_id": "fault.worn_belt",
+      "component_types": ["conveyor"],
+      "default_severity_bps": 4000,
+      "capacity_factor_bps": 7000,
+      "availability_effect": false,
+      "symptom_ids": ["symptom.abnormal_vibration"],
+      "permitted_interventions": ["Repair", "Replace", "Derate"]
+    },
+    {
+      "fault_type_id": "fault.screen_blockage",
+      "component_types": ["screen"],
+      "default_severity_bps": 5000,
+      "capacity_factor_bps": 3000,
+      "availability_effect": false,
+      "symptom_ids": ["symptom.blockage_indication", "symptom.low_flow"],
+      "permitted_interventions": ["Clean", "Repair", "Replace"]
+    }
+  ]
+}

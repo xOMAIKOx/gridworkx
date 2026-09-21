@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/failure-command.schema.json",
+  "title": "GRIDWORKS failure/diagnosis/intervention command payload",
+  "type": "object",
+  "required": ["failure"],
+  "properties": {
+    "failure": {
+      "type": "object",
+      "required": ["action", "data"],
+      "properties": {
+        "action": {"enum": ["ActivateFault", "Inspect", "Test", "Diagnose", "Intervene"]},
+        "data": {"type": "object"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

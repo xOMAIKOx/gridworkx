@@ -1,8 +1,14 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub mod failure;
 pub mod graph;
 
+pub use failure::{
+    aggregate_fault_definitions, ComponentConditionState, Diagnosis, DiagnosisStatus, EvidenceItem,
+    EvidenceSource, FailureCommand, FailureError, FailureEvent, FailureState, FaultDefinition,
+    FaultInstance, FaultStatus, InterventionKind, Observation, SymptomObservation,
+};
 pub use graph::{
     aggregate_plant_fixture, BottleneckEvidence, BottleneckReason, Component, DependencyEdge,
     DependencyType, Facility, FacilityContext, FacilityEvaluation, GraphError, OperationalState,
@@ -40,6 +46,7 @@ pub enum KernelError {
     EmptyChoiceSet,
     Serialization(String),
     Deserialization(String),
+    Failure(FailureError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -108,6 +115,8 @@ pub enum ProofPayload {
     AdjustRegister { delta: i64 },
     #[serde(rename = "seeded_pulse")]
     SeededPulse { options: Vec<i64> },
+    #[serde(rename = "failure")]
+    Failure(FailureCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +221,8 @@ pub struct SimulationState {
     pub executed_commands: Vec<ExecutedCommand>,
     #[serde(default)]
     pub facilities: Vec<Facility>,
+    #[serde(default)]
+    pub failure: FailureState,
 }
 
 impl SimulationState {
@@ -229,6 +240,7 @@ impl SimulationState {
             },
             executed_commands: Vec::new(),
             facilities: Vec::new(),
+            failure: FailureState::default(),
         };
         state.validate()?;
         Ok(state)
@@ -240,6 +252,19 @@ impl SimulationState {
             .map_err(|error| KernelError::InvalidState(format!("facility graph: {error}")))?;
         state.facilities = facilities;
         Ok(state)
+    }
+
+    pub fn evaluate_facility(&self, facility_id: &str) -> Result<FacilityEvaluation, KernelError> {
+        let facility = self
+            .facilities
+            .iter()
+            .find(|facility| facility.facility_id == facility_id)
+            .ok_or_else(|| {
+                KernelError::Failure(FailureError::UnknownComponent(facility_id.to_owned()))
+            })?;
+        self.failure
+            .evaluate_facility(facility)
+            .map_err(KernelError::Failure)
     }
 
     pub fn validate(&self) -> Result<(), KernelError> {
@@ -261,6 +286,9 @@ impl SimulationState {
         self.rng.validate()?;
         graph::validate_facilities(&self.facilities)
             .map_err(|error| KernelError::InvalidState(format!("facility graph: {error}")))?;
+        self.failure
+            .validate_against_facilities(&self.facilities)
+            .map_err(KernelError::Failure)?;
         for (index, current) in self.executed_commands.iter().enumerate() {
             if current.command_id.is_empty() || current.idempotency_key.is_empty() {
                 return Err(KernelError::InvalidState(
@@ -289,6 +317,7 @@ impl SimulationState {
         canonical
             .facilities
             .sort_by(|left, right| left.facility_id.cmp(&right.facility_id));
+        canonical.failure = self.failure.canonicalized();
         canonical
     }
 
@@ -384,6 +413,8 @@ pub enum KernelEvent {
         chosen_value: i64,
         register: i64,
     },
+    #[serde(rename = "failure")]
+    Failure(FailureEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -464,6 +495,23 @@ pub fn execute(state: &mut SimulationState, command: &Command) -> Result<Transit
         ("proof.seeded_pulse", _) => {
             return Err(KernelError::MalformedCommand(
                 "seeded_pulse payload does not match command type".to_owned(),
+            ))
+        }
+        (failure_type, ProofPayload::Failure(action)) if failure_type.starts_with("failure.") => {
+            let facilities = next.facilities.clone();
+            next.failure
+                .apply(
+                    &facilities,
+                    action,
+                    command.effective_time_ms,
+                    &next.rules_version,
+                )
+                .map(KernelEvent::Failure)
+                .map_err(KernelError::Failure)?
+        }
+        (failure_type, ProofPayload::Failure(_)) if failure_type.starts_with("failure.") => {
+            return Err(KernelError::MalformedCommand(
+                "failure payload does not match command type".to_owned(),
             ))
         }
         (unsupported, _) => {
@@ -700,6 +748,48 @@ mod tests {
         let evaluation = restored.facilities[0].evaluate().unwrap();
         assert_eq!(evaluation.effective_capacity, 100);
         assert_eq!(evaluation.operational_state, OperationalState::Operational);
+    }
+
+    #[test]
+    fn failure_commands_use_kernel_replay_and_graph_projection() {
+        let mut state =
+            SimulationState::with_facilities(41, vec![aggregate_plant_fixture()]).unwrap();
+        state.failure = FailureState::with_definitions(aggregate_fault_definitions());
+        let activate = Command {
+            command_id: "command.failure.activate".to_owned(),
+            command_type: "failure.activate".to_owned(),
+            schema_version: SCHEMA_VERSION.to_owned(),
+            rules_version: RULES_VERSION.to_owned(),
+            effective_time_ms: 0,
+            idempotency_key: "idempotency.failure.activate".to_owned(),
+            payload: ProofPayload::Failure(FailureCommand::ActivateFault {
+                fault_instance_id: "fault.instance.feed_motor".to_owned(),
+                fault_type_id: "fault.motor_bearing_seizure".to_owned(),
+                component_id: "component.feed_conveyor".to_owned(),
+                severity_bps: 10_000,
+            }),
+        };
+        execute(&mut state, &activate).unwrap();
+        assert_eq!(
+            state
+                .evaluate_facility("facility.aggregate_plant_fixture")
+                .unwrap()
+                .effective_capacity,
+            0
+        );
+        let restored = SimulationState::from_json(&state.to_json().unwrap()).unwrap();
+        assert_eq!(restored.digest(), state.digest());
+    }
+
+    #[test]
+    fn failure_state_order_is_canonicalized_in_snapshot_digest() {
+        let mut first =
+            SimulationState::with_facilities(41, vec![aggregate_plant_fixture()]).unwrap();
+        first.failure = FailureState::with_definitions(aggregate_fault_definitions());
+        let mut second = first.clone();
+        second.failure.fault_definitions.reverse();
+        assert_eq!(first.to_json().unwrap(), second.to_json().unwrap());
+        assert_eq!(first.digest(), second.digest());
     }
 
     #[test]
