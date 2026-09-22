@@ -854,7 +854,8 @@ mod tests {
         ));
         assert_eq!(
             state.material.inventories[1]
-                .quantity("resource.finished_aggregate", "grade.aggregate.standard"),
+                .quantity("resource.finished_aggregate", "grade.aggregate.standard")
+                .unwrap(),
             8
         );
     }

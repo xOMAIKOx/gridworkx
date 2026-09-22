@@ -29,3 +29,9 @@ The fixture proves healthy production, input shortage, destination capacity, gra
 Material state participates in the WP-002 snapshot/digest through `SimulationState`, and material commands/events use the existing version/time/idempotency envelope. No graph or failure math is duplicated: production consumes the existing facility evaluation result.
 
 Schemas and content are exercised by the repository validation tool. No host packages, services, databases, deployment, UI or container runtime work was performed.
+
+## Remediation integrity evidence
+
+Inventory permission constraints are enforced consistently with empty `permitted_resource_ids` meaning accept none. Persisted lots, transfer destinations, production inputs and production outputs all reject unpermitted resources before mutation.
+
+Production executes against a cloned material state and commits only after all input/output arithmetic, permissions, capacities and yields succeed. Zero-yield outputs are explicit no-op outputs. Checked quantity totals, output-per-run aggregation, input totals and capacity calculations reject overflow deterministically without mutation.

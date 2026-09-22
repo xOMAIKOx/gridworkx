@@ -17,6 +17,10 @@ pub enum MaterialError {
     UnknownResource(String),
     UnknownRecipe(String),
     UnknownInventory(String),
+    ResourceNotPermitted {
+        inventory_id: String,
+        resource_id: String,
+    },
     GradeMismatch {
         resource_id: String,
         grade_id: String,
@@ -78,22 +82,42 @@ pub struct InventoryStore {
     pub lots: Vec<MaterialLot>,
 }
 impl InventoryStore {
-    pub fn quantity(&self, resource: &str, grade: &str) -> u64 {
+    pub fn allows_resource(&self, resource: &str) -> bool {
+        self.permitted_resource_ids
+            .iter()
+            .any(|allowed| allowed == resource)
+    }
+    pub fn quantity(&self, resource: &str, grade: &str) -> Result<u64, MaterialError> {
         self.lots
             .iter()
             .filter(|l| l.resource_id == resource && l.grade_id == grade)
-            .map(|l| l.quantity)
-            .sum()
+            .try_fold(0u64, |total, lot| {
+                total
+                    .checked_add(lot.quantity)
+                    .ok_or(MaterialError::QuantityOverflow)
+            })
     }
-    pub fn total_quantity(&self) -> u64 {
-        self.lots.iter().map(|l| l.quantity).sum()
+    pub fn total_quantity(&self) -> Result<u64, MaterialError> {
+        self.lots.iter().try_fold(0u64, |total, lot| {
+            total
+                .checked_add(lot.quantity)
+                .ok_or(MaterialError::QuantityOverflow)
+        })
     }
-    pub fn free_capacity(&self) -> u64 {
-        self.capacity.saturating_sub(self.total_quantity())
+    pub fn free_capacity(&self) -> Result<u64, MaterialError> {
+        self.capacity
+            .checked_sub(self.total_quantity()?)
+            .ok_or(MaterialError::CapacityExceeded(self.inventory_id.clone()))
     }
     fn add(&mut self, resource: &str, grade: &str, quantity: u64) -> Result<(), MaterialError> {
+        if !self.allows_resource(resource) {
+            return Err(MaterialError::ResourceNotPermitted {
+                inventory_id: self.inventory_id.clone(),
+                resource_id: resource.to_owned(),
+            });
+        }
         if quantity == 0 {
-            return Err(MaterialError::InvalidQuantity);
+            return Ok(());
         }
         if let Some(lot) = self
             .lots
@@ -304,11 +328,17 @@ impl MaterialState {
                     return Err(MaterialError::InvalidQuantity);
                 }
                 grade(&resources, &l.resource_id, &l.grade_id)?;
+                if !i.allows_resource(&l.resource_id) {
+                    return Err(MaterialError::ResourceNotPermitted {
+                        inventory_id: i.inventory_id.clone(),
+                        resource_id: l.resource_id.clone(),
+                    });
+                }
                 if !lots.insert((l.resource_id.as_str(), l.grade_id.as_str())) {
                     return Err(MaterialError::DuplicateLot(l.resource_id.clone()));
                 }
             }
-            if i.total_quantity() > i.capacity {
+            if i.total_quantity()? > i.capacity {
                 return Err(MaterialError::CapacityExceeded(i.inventory_id.clone()));
             }
         }
@@ -396,8 +426,14 @@ impl MaterialState {
                 "source equals destination".to_owned(),
             ));
         }
-        let available = self.inventories[si].quantity(resource, grade_id);
-        let space = self.inventories[di].free_capacity();
+        let available = self.inventories[si].quantity(resource, grade_id)?;
+        let space = self.inventories[di].free_capacity()?;
+        if !self.inventories[di].allows_resource(resource) {
+            return Err(MaterialError::ResourceNotPermitted {
+                inventory_id: self.inventories[di].inventory_id.clone(),
+                resource_id: resource.to_owned(),
+            });
+        }
         let accepted = requested.min(available).min(space);
         let limit = if accepted == requested {
             MaterialLimit::None
@@ -422,6 +458,33 @@ impl MaterialState {
     }
     #[allow(clippy::too_many_arguments)]
     fn produce(
+        &mut self,
+        facilities: &[Facility],
+        failure: &FailureState,
+        run_id: &str,
+        recipe_id: &str,
+        facility_id: &str,
+        sources: &[InputSource],
+        output_id: &str,
+        requested: u64,
+    ) -> Result<MaterialEvent, MaterialError> {
+        let mut staged = self.clone();
+        let event = staged.produce_unstaged(
+            facilities,
+            failure,
+            run_id,
+            recipe_id,
+            facility_id,
+            sources,
+            output_id,
+            requested,
+        )?;
+        *self = staged;
+        Ok(event)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn produce_unstaged(
         &mut self,
         facilities: &[Facility],
         failure: &FailureState,
@@ -479,23 +542,42 @@ impl MaterialState {
                 .iter()
                 .find(|s| s.inventory_id == *store_id)
                 .ok_or_else(|| MaterialError::UnknownInventory((*store_id).to_owned()))?;
+            if !store.allows_resource(&input.resource_id) {
+                return Err(MaterialError::ResourceNotPermitted {
+                    inventory_id: store.inventory_id.clone(),
+                    resource_id: input.resource_id.clone(),
+                });
+            }
             let possible =
-                store.quantity(&input.resource_id, &input.grade_id) / input.quantity_per_run;
+                store.quantity(&input.resource_id, &input.grade_id)? / input.quantity_per_run;
             if possible < accepted {
                 accepted = possible;
                 limit = MaterialLimit::InsufficientInput;
             }
         }
         let oi = self.index(output_id)?;
-        let output_per_run = recipe
-            .outputs
-            .iter()
-            .map(|o| o.quantity_per_run.saturating_mul(u64::from(o.yield_bps)) / 10_000)
-            .sum::<u64>();
+        for output in &recipe.outputs {
+            if !self.inventories[oi].allows_resource(&output.resource_id) {
+                return Err(MaterialError::ResourceNotPermitted {
+                    inventory_id: self.inventories[oi].inventory_id.clone(),
+                    resource_id: output.resource_id.clone(),
+                });
+            }
+        }
+        let output_per_run = recipe.outputs.iter().try_fold(0u64, |total, output| {
+            let quantity = output
+                .quantity_per_run
+                .checked_mul(u64::from(output.yield_bps))
+                .ok_or(MaterialError::QuantityOverflow)?
+                / 10_000;
+            total
+                .checked_add(quantity)
+                .ok_or(MaterialError::QuantityOverflow)
+        })?;
         let possible_output = if output_per_run == 0 {
             0
         } else {
-            self.inventories[oi].free_capacity() / output_per_run
+            self.inventories[oi].free_capacity()? / output_per_run
         };
         if possible_output < accepted {
             accepted = possible_output;
@@ -543,11 +625,15 @@ impl MaterialState {
                 .checked_add(q)
                 .ok_or(MaterialError::QuantityOverflow)?;
         }
-        let input_total = recipe
-            .inputs
-            .iter()
-            .map(|i| i.quantity_per_run.saturating_mul(accepted))
-            .sum();
+        let input_total = recipe.inputs.iter().try_fold(0u64, |total, input| {
+            let quantity = input
+                .quantity_per_run
+                .checked_mul(accepted)
+                .ok_or(MaterialError::QuantityOverflow)?;
+            total
+                .checked_add(quantity)
+                .ok_or(MaterialError::QuantityOverflow)
+        })?;
         Ok(MaterialEvent::ProductionExecuted {
             run_id: run_id.to_owned(),
             recipe_id: recipe_id.to_owned(),
@@ -732,12 +818,15 @@ mod tests {
             }
         );
         assert_eq!(
-            materials.inventories[0].quantity("resource.raw_feed", "grade.raw.standard"),
+            materials.inventories[0]
+                .quantity("resource.raw_feed", "grade.raw.standard")
+                .unwrap(),
             50
         );
         assert_eq!(
             materials.inventories[1]
-                .quantity("resource.finished_aggregate", "grade.aggregate.standard"),
+                .quantity("resource.finished_aggregate", "grade.aggregate.standard")
+                .unwrap(),
             40
         );
     }
@@ -759,7 +848,9 @@ mod tests {
             }
         ));
         assert_eq!(
-            shortage.inventories[0].quantity("resource.raw_feed", "grade.raw.standard"),
+            shortage.inventories[0]
+                .quantity("resource.raw_feed", "grade.raw.standard")
+                .unwrap(),
             5
         );
         let mut full = aggregate_material_fixture();
@@ -780,18 +871,20 @@ mod tests {
             }
         ));
         assert_eq!(
-            full.inventories[0].quantity("resource.raw_feed", "grade.raw.standard"),
+            full.inventories[0]
+                .quantity("resource.raw_feed", "grade.raw.standard")
+                .unwrap(),
             100
         );
-        assert_eq!(full.inventories[1].total_quantity(), 95);
+        assert_eq!(full.inventories[1].total_quantity().unwrap(), 95);
     }
 
     #[test]
     fn grade_mismatch_and_transfer_conservation_are_enforced() {
         let mut materials = aggregate_material_fixture();
         let facilities = facilities();
-        let before =
-            materials.inventories[0].total_quantity() + materials.inventories[1].total_quantity();
+        let before = materials.inventories[0].total_quantity().unwrap()
+            + materials.inventories[1].total_quantity().unwrap();
         let transfer = MaterialCommand::Transfer {
             transfer_id: "transfer.raw".to_owned(),
             source_inventory_id: "inventory.aggregate_feed".to_owned(),
@@ -804,10 +897,17 @@ mod tests {
             materials.execute(&facilities, &failure(), &transfer),
             Err(MaterialError::GradeMismatch { .. })
         ));
+        materials.inventories.push(InventoryStore {
+            inventory_id: "inventory.transfer_target".to_owned(),
+            facility_id: Some("facility.aggregate_plant_fixture".to_owned()),
+            capacity: 100,
+            permitted_resource_ids: vec!["resource.raw_feed".to_owned()],
+            lots: Vec::new(),
+        });
         let valid = MaterialCommand::Transfer {
             transfer_id: "transfer.raw".to_owned(),
             source_inventory_id: "inventory.aggregate_feed".to_owned(),
-            destination_inventory_id: "inventory.aggregate_finished".to_owned(),
+            destination_inventory_id: "inventory.transfer_target".to_owned(),
             resource_id: "resource.raw_feed".to_owned(),
             grade_id: "grade.raw.standard".to_owned(),
             quantity: 10,
@@ -820,9 +920,110 @@ mod tests {
                 ..
             }
         ));
-        let after =
-            materials.inventories[0].total_quantity() + materials.inventories[1].total_quantity();
+        let after = materials
+            .inventories
+            .iter()
+            .map(|inventory| inventory.total_quantity().unwrap())
+            .sum::<u64>();
         assert_eq!(before, after);
+    }
+
+    #[test]
+    fn inventory_permissions_reject_invalid_lots_transfers_and_outputs() {
+        let facilities = facilities();
+        let mut invalid_lot = aggregate_material_fixture();
+        invalid_lot.inventories[1].lots.push(MaterialLot {
+            resource_id: "resource.raw_feed".to_owned(),
+            grade_id: "grade.raw.standard".to_owned(),
+            quantity: 1,
+        });
+        assert!(matches!(
+            invalid_lot.validate(&facilities),
+            Err(MaterialError::ResourceNotPermitted { .. })
+        ));
+        let mut transfer = aggregate_material_fixture();
+        let before = transfer.clone();
+        let command = MaterialCommand::Transfer {
+            transfer_id: "transfer.forbidden".to_owned(),
+            source_inventory_id: "inventory.aggregate_feed".to_owned(),
+            destination_inventory_id: "inventory.aggregate_finished".to_owned(),
+            resource_id: "resource.raw_feed".to_owned(),
+            grade_id: "grade.raw.standard".to_owned(),
+            quantity: 1,
+        };
+        assert!(matches!(
+            transfer.execute(&facilities, &failure(), &command),
+            Err(MaterialError::ResourceNotPermitted { .. })
+        ));
+        assert_eq!(transfer, before);
+        let mut production = aggregate_material_fixture();
+        production.inventories[1]
+            .permitted_resource_ids
+            .retain(|id| id == "resource.aggregate_waste");
+        let before = production.clone();
+        assert!(matches!(
+            production.execute(&facilities, &failure(), &production_command(1)),
+            Err(MaterialError::ResourceNotPermitted { .. })
+        ));
+        assert_eq!(production, before);
+    }
+
+    #[test]
+    fn zero_yield_is_a_valid_noop_and_overflow_is_atomic() {
+        let facilities = facilities();
+        let mut zero_yield = aggregate_material_fixture();
+        zero_yield.recipes[0].outputs[0].yield_bps = 0;
+        let event = zero_yield
+            .execute(&facilities, &failure(), &production_command(1))
+            .unwrap();
+        assert!(matches!(
+            event,
+            MaterialEvent::ProductionExecuted {
+                accepted_runs: 1,
+                ..
+            }
+        ));
+        assert_eq!(
+            zero_yield.inventories[1]
+                .quantity("resource.finished_aggregate", "grade.aggregate.standard")
+                .unwrap(),
+            0
+        );
+        let mut overflow = aggregate_material_fixture();
+        overflow.recipes[0].outputs[0].quantity_per_run = u64::MAX;
+        let before = overflow.clone();
+        assert_eq!(
+            overflow.execute(&facilities, &failure(), &production_command(2)),
+            Err(MaterialError::QuantityOverflow)
+        );
+        assert_eq!(overflow, before);
+        let overflowing_inventory = InventoryStore {
+            inventory_id: "inventory.overflow".to_owned(),
+            facility_id: Some("facility.aggregate_plant_fixture".to_owned()),
+            capacity: u64::MAX,
+            permitted_resource_ids: vec![
+                "resource.raw_feed".to_owned(),
+                "resource.limestone".to_owned(),
+            ],
+            lots: vec![
+                MaterialLot {
+                    resource_id: "resource.raw_feed".to_owned(),
+                    grade_id: "grade.raw.standard".to_owned(),
+                    quantity: u64::MAX,
+                },
+                MaterialLot {
+                    resource_id: "resource.limestone".to_owned(),
+                    grade_id: "grade.limestone.standard".to_owned(),
+                    quantity: u64::MAX,
+                },
+            ],
+        };
+        let mut state = aggregate_material_fixture();
+        state.inventories.push(overflowing_inventory);
+        assert_eq!(
+            state.validate(&facilities),
+            Err(MaterialError::QuantityOverflow)
+        );
     }
 
     #[test]
