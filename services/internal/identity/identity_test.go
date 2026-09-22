@@ -2,6 +2,7 @@ package identity
 
 import (
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestGuestIssuanceIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Account.AccountID != second.Account.AccountID || first.Player.PlayerID != second.Player.PlayerID || first.RawSessionToken != second.RawSessionToken {
+	if first.Account.AccountID != second.Account.AccountID || first.Player.PlayerID != second.Player.PlayerID || first.RawSessionToken == "" || second.RawSessionToken != "" {
 		t.Fatal("duplicate issuance was not idempotent")
 	}
 	encoded, _ := json.Marshal(first.Session)
@@ -34,23 +35,23 @@ func TestLinkRequiresProofAndPreservesGuestIdentity(t *testing.T) {
 	store := NewInMemoryStore()
 	now := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
 	guest, _ := store.IssueGuest("request-1", now)
-	_, err := store.LinkExternal(guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1"}, now)
+	_, err := store.LinkExternal("link-1", guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1"}, now)
 	if err != ErrUnverifiedIdentity {
 		t.Fatalf("expected unverified identity rejection, got %v", err)
 	}
-	link, err := store.LinkExternal(guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true, ProofReference: "proof-1"}, now)
+	link, err := store.LinkExternal("link-1", guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true, ProofReference: "proof-1"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if link.AccountID != guest.Account.AccountID || store.accounts[guest.Account.AccountID].Status != AccountProtected {
 		t.Fatal("link did not preserve guest account")
 	}
-	replay, err := store.LinkExternal(guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true}, now)
+	replay, err := store.LinkExternal("link-1", guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true, ProofReference: "proof-1"}, now)
 	if err != nil || replay.LinkID != link.LinkID {
 		t.Fatal("same identity link was not idempotent")
 	}
 	other, _ := store.IssueGuest("request-2", now)
-	_, err = store.LinkExternal(other.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true}, now)
+	_, err = store.LinkExternal("link-2", other.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true, ProofReference: "proof-2"}, now)
 	if err != ErrExternalIdentityConflict {
 		t.Fatalf("expected cross-account conflict, got %v", err)
 	}
@@ -63,7 +64,7 @@ func TestSessionsRevokeExpireAndHandlesNormalize(t *testing.T) {
 	if err := store.RevokeSession(guest.RawSessionToken, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.LinkExternal(guest.RawSessionToken, ExternalIdentityAssertion{Provider: "apple", Issuer: "https://apple.example", Subject: "sub", Verified: true}, now); err != ErrInvalidSession {
+	if _, err := store.LinkExternal("link-3", guest.RawSessionToken, ExternalIdentityAssertion{Provider: "apple", Issuer: "https://apple.example", Subject: "sub", Verified: true}, now); err != ErrInvalidSession {
 		t.Fatalf("revoked session accepted: %v", err)
 	}
 	if !ValidateLocale("pt-BR") || ValidateLocale("xx") || !ValidateTimezone("UTC") || ValidateTimezone("not/a-zone") {
@@ -95,5 +96,31 @@ func TestPublicProfileExcludesPrivateIdentityState(t *testing.T) {
 	encoded, _ := json.Marshal(public)
 	if strings.Contains(string(encoded), "AccountID") || strings.Contains(string(encoded), "Session") || strings.Contains(string(encoded), "provider") {
 		t.Fatal("public profile exposed private identity state")
+	}
+}
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+func TestLinkIdempotencyAndRandomFailureAreSafe(t *testing.T) {
+	store := NewInMemoryStore()
+	now := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+	guest, _ := store.IssueGuest("request-1", now)
+	assertion := ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "sub-1", Verified: true, ProofReference: "proof-1"}
+	if _, err := store.LinkExternal("link-1", guest.RawSessionToken, assertion, now); err != nil {
+		t.Fatal(err)
+	}
+	changed := assertion
+	changed.Subject = "sub-2"
+	if _, err := store.LinkExternal("link-1", guest.RawSessionToken, changed, now); err != ErrIdempotencyConflict {
+		t.Fatalf("expected idempotency conflict, got %v", err)
+	}
+	if store.links[assertion.Issuer+"\x00"+assertion.Subject].ProofReference != "proof-1" {
+		t.Fatal("proof reference was not retained")
+	}
+	failing := NewInMemoryStoreWithRandom(failingReader{})
+	if _, err := failing.IssueGuest("failed", now); err == nil || len(failing.accounts) != 0 || len(failing.players) != 0 || len(failing.sessions) != 0 {
+		t.Fatal("random failure mutated identity state")
 	}
 }

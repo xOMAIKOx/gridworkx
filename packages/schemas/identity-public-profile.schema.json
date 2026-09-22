@@ -1,0 +1,9 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/identity-public-profile.schema.json",
+  "title":"GRIDWORKS public player profile",
+  "type":"object",
+  "required":["player_id","handle","display_name","locale","visibility","discoverable"],
+  "properties":{"player_id":{"type":"string","pattern":"^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$"},"handle":{"type":"string","minLength":3,"maxLength":32},"display_name":{"type":"string","minLength":1,"maxLength":80},"avatar_asset_id":{"type":"string"},"bio":{"type":"string","maxLength":1000},"locale":{"type":"string","minLength":2,"maxLength":16},"visibility":{"enum":["public","private"]},"discoverable":{"type":"boolean"}},
+  "additionalProperties":false
+}

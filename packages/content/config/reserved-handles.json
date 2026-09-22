@@ -1,0 +1,5 @@
+{
+  "config_id": "identity.reserved_handles",
+  "version": "1.0.0",
+  "handles": ["gridworks", "admin", "administrator", "moderator", "support", "system", "official"]
+}

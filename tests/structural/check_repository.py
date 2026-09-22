@@ -15,6 +15,7 @@ REQUIRED_PATHS = [
     "db/migrations/0002_wp006_persistence_ledger.sql",
     "db/migrations/0003_wp007_identity_profile.sql",
     "docs/evidence/WP-007_GUEST_FIRST_IDENTITY_PROFILE.md",
+    "packages/content/config/reserved-handles.json",
     "db/seeds/0001_domain_registry.sql",
     "ops/config/gridworks.env.example",
     "ops/systemd/gridworks-api.service",

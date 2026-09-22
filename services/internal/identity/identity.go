@@ -5,15 +5,17 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"io"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
 
+	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 )
 
-const HandleAlgorithmVersion = "unicode-15.1-skeleton-v1"
+const HandleAlgorithmVersion = "gridworks-unicode-15.1-confusable-subset-v1"
 
 type AccountStatus string
 
@@ -59,14 +61,15 @@ type SessionRecord struct {
 	RevokedAt   *time.Time
 }
 type ExternalIdentity struct {
-	LinkID      string
-	AccountID   string
-	Provider    string
-	Issuer      string
-	Subject     string
-	IdentityKey string
-	LinkedAt    time.Time
-	RevokedAt   *time.Time
+	LinkID         string
+	AccountID      string
+	Provider       string
+	Issuer         string
+	Subject        string
+	IdentityKey    string
+	ProofReference string
+	LinkedAt       time.Time
+	RevokedAt      *time.Time
 }
 type PlayerProfile struct {
 	PlayerID                string
@@ -122,25 +125,39 @@ const (
 // IdentityStore is a repository/domain seam. Implementations can map these atomic operations to one DB transaction.
 type IdentityStore interface {
 	IssueGuest(idempotencyKey string, now time.Time) (GuestIssuanceResult, error)
-	LinkExternal(sessionToken string, assertion ExternalIdentityAssertion, now time.Time) (ExternalIdentity, error)
+	LinkExternal(idempotencyKey string, sessionToken string, assertion ExternalIdentityAssertion, now time.Time) (ExternalIdentity, error)
 	RevokeSession(sessionToken string, now time.Time) error
 }
 
-type InMemoryStore struct {
-	mu        sync.Mutex
-	accounts  map[string]Account
-	players   map[string]Player
-	profiles  map[string]PlayerProfile
-	sessions  map[string]SessionRecord
-	links     map[string]ExternalIdentity
-	receipts  map[string]GuestIssuanceResult
-	handles   map[string]string
-	skeletons map[string]string
-	reserved  map[string]struct{}
+type guestReceipt struct {
+	AccountID     string
+	PlayerID      string
+	SessionID     string
+	RequestDigest string
+}
+type mutationReceipt struct {
+	RequestDigest string
+	ResultRef     string
 }
 
-func NewInMemoryStore() *InMemoryStore {
-	return &InMemoryStore{accounts: map[string]Account{}, players: map[string]Player{}, profiles: map[string]PlayerProfile{}, sessions: map[string]SessionRecord{}, links: map[string]ExternalIdentity{}, receipts: map[string]GuestIssuanceResult{}, handles: map[string]string{}, skeletons: map[string]string{}, reserved: map[string]struct{}{"gridworks": {}, "admin": {}, "administrator": {}, "moderator": {}, "support": {}, "system": {}, "official": {}}}
+type InMemoryStore struct {
+	mu               sync.Mutex
+	random           io.Reader
+	accounts         map[string]Account
+	players          map[string]Player
+	profiles         map[string]PlayerProfile
+	sessions         map[string]SessionRecord
+	links            map[string]ExternalIdentity
+	receipts         map[string]guestReceipt
+	mutationReceipts map[string]mutationReceipt
+	handles          map[string]string
+	skeletons        map[string]string
+	reserved         map[string]struct{}
+}
+
+func NewInMemoryStore() *InMemoryStore { return NewInMemoryStoreWithRandom(rand.Reader) }
+func NewInMemoryStoreWithRandom(random io.Reader) *InMemoryStore {
+	return &InMemoryStore{random: random, accounts: map[string]Account{}, players: map[string]Player{}, profiles: map[string]PlayerProfile{}, sessions: map[string]SessionRecord{}, links: map[string]ExternalIdentity{}, receipts: map[string]guestReceipt{}, mutationReceipts: map[string]mutationReceipt{}, handles: map[string]string{}, skeletons: map[string]string{}, reserved: map[string]struct{}{"gridworks": {}, "admin": {}, "administrator": {}, "moderator": {}, "support": {}, "system": {}, "official": {}}}
 }
 
 func (s *InMemoryStore) IssueGuest(idempotencyKey string, now time.Time) (GuestIssuanceResult, error) {
@@ -149,15 +166,27 @@ func (s *InMemoryStore) IssueGuest(idempotencyKey string, now time.Time) (GuestI
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if prior, ok := s.receipts[idempotencyKey]; ok {
-		return prior, nil
+	if receipt, ok := s.receipts[idempotencyKey]; ok {
+		return s.resultFor(receipt, ""), nil
 	}
-	accountID, _ := opaqueID("account")
-	playerID, _ := opaqueID("player")
-	sessionID, _ := opaqueID("session")
-	token, err := secureToken()
+	accountID, err := opaqueID(s.random, "account")
 	if err != nil {
 		return GuestIssuanceResult{}, err
+	}
+	playerID, err := opaqueID(s.random, "player")
+	if err != nil {
+		return GuestIssuanceResult{}, err
+	}
+	sessionID, err := opaqueID(s.random, "session")
+	if err != nil {
+		return GuestIssuanceResult{}, err
+	}
+	token, err := secureToken(s.random)
+	if err != nil {
+		return GuestIssuanceResult{}, err
+	}
+	if len(accountID) < 8 {
+		return GuestIssuanceResult{}, ErrInvalidSession
 	}
 	handle, err := NormalizeHandle("guest-" + accountID[len(accountID)-8:])
 	if err != nil {
@@ -172,29 +201,53 @@ func (s *InMemoryStore) IssueGuest(idempotencyKey string, now time.Time) (GuestI
 	session := SessionRecord{SessionID: sessionID, AccountID: accountID, TokenDigest: digestToken(token), CreatedAt: now, LastUsedAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour)}
 	result := GuestIssuanceResult{Account: account, Player: player, Profile: profile, Session: session, RawSessionToken: token}
 	s.accounts[accountID], s.players[playerID], s.profiles[playerID], s.sessions[sessionID] = account, player, profile, session
-	s.receipts[idempotencyKey] = result
+	s.receipts[idempotencyKey] = guestReceipt{AccountID: accountID, PlayerID: playerID, SessionID: sessionID, RequestDigest: requestDigest(idempotencyKey)}
 	return result, nil
 }
-func (s *InMemoryStore) LinkExternal(sessionToken string, assertion ExternalIdentityAssertion, now time.Time) (ExternalIdentity, error) {
+func (s *InMemoryStore) resultFor(receipt guestReceipt, rawToken string) GuestIssuanceResult {
+	return GuestIssuanceResult{Account: s.accounts[receipt.AccountID], Player: s.players[receipt.PlayerID], Profile: s.profiles[receipt.PlayerID], Session: s.sessions[receipt.SessionID], RawSessionToken: rawToken}
+}
+
+func (s *InMemoryStore) LinkExternal(idempotencyKey string, sessionToken string, assertion ExternalIdentityAssertion, now time.Time) (ExternalIdentity, error) {
+	if strings.TrimSpace(idempotencyKey) == "" {
+		return ExternalIdentity{}, ErrInvalidIdempotency
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	session, ok := s.findSession(sessionToken)
 	if !ok || session.RevokedAt != nil || !now.Before(session.ExpiresAt) {
 		return ExternalIdentity{}, ErrInvalidSession
 	}
-	if !assertion.Verified || strings.TrimSpace(assertion.Provider) == "" || strings.TrimSpace(assertion.Issuer) == "" || strings.TrimSpace(assertion.Subject) == "" {
+	if !assertion.Verified || strings.TrimSpace(assertion.Provider) == "" || strings.TrimSpace(assertion.Issuer) == "" || strings.TrimSpace(assertion.Subject) == "" || strings.TrimSpace(assertion.ProofReference) == "" {
 		return ExternalIdentity{}, ErrUnverifiedIdentity
+	}
+	digest := requestDigest(session.AccountID, assertion.Provider, assertion.Issuer, assertion.Subject, assertion.ProofReference)
+	if receipt, ok := s.mutationReceipts[idempotencyKey]; ok {
+		if receipt.RequestDigest != digest {
+			return ExternalIdentity{}, ErrIdempotencyConflict
+		}
+		for _, link := range s.links {
+			if link.LinkID == receipt.ResultRef {
+				return link, nil
+			}
+		}
+		return ExternalIdentity{}, ErrExternalIdentityConflict
 	}
 	key := assertion.Issuer + "\x00" + assertion.Subject
 	if existing, ok := s.links[key]; ok {
 		if existing.AccountID == session.AccountID {
+			s.mutationReceipts[idempotencyKey] = mutationReceipt{RequestDigest: digest, ResultRef: existing.LinkID}
 			return existing, nil
 		}
 		return ExternalIdentity{}, ErrExternalIdentityConflict
 	}
-	linkID, _ := opaqueID("identity-link")
-	link := ExternalIdentity{LinkID: linkID, AccountID: session.AccountID, Provider: assertion.Provider, Issuer: assertion.Issuer, Subject: assertion.Subject, IdentityKey: key, LinkedAt: now, RevokedAt: nil}
+	linkID, err := opaqueID(s.random, "identity-link")
+	if err != nil {
+		return ExternalIdentity{}, err
+	}
+	link := ExternalIdentity{LinkID: linkID, AccountID: session.AccountID, Provider: assertion.Provider, Issuer: assertion.Issuer, Subject: assertion.Subject, IdentityKey: key, ProofReference: assertion.ProofReference, LinkedAt: now}
 	s.links[key] = link
+	s.mutationReceipts[idempotencyKey] = mutationReceipt{RequestDigest: digest, ResultRef: linkID}
 	account := s.accounts[session.AccountID]
 	account.Status = AccountProtected
 	account.AuthorityVersion++
@@ -236,16 +289,16 @@ func (s *InMemoryStore) reserveHandle(handle NormalizedHandle) error {
 	return nil
 }
 
-func opaqueID(prefix string) (string, error) {
+func opaqueID(random io.Reader, prefix string) (string, error) {
 	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := io.ReadFull(random, b); err != nil {
 		return "", err
 	}
 	return prefix + "." + hex.EncodeToString(b), nil
 }
-func secureToken() (string, error) {
+func secureToken(random io.Reader) (string, error) {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := io.ReadFull(random, b); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
@@ -254,6 +307,7 @@ func digestToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }
+func requestDigest(parts ...string) string { return digestToken(strings.Join(parts, "\x00")) }
 
 type NormalizedHandle struct {
 	Display   string
@@ -267,9 +321,10 @@ func NormalizeHandle(value string) (NormalizedHandle, error) {
 		return NormalizedHandle{}, ErrHandleInvalid
 	}
 	normalized := norm.NFKC.String(display)
+	folded := cases.Fold().String(normalized)
 	var canonical strings.Builder
 	var skeleton strings.Builder
-	for _, r := range normalized {
+	for _, r := range folded {
 		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return NormalizedHandle{}, ErrHandleInvalid
 		}
