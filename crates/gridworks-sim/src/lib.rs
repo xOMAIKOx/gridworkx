@@ -3,7 +3,9 @@ use sha2::{Digest, Sha256};
 
 pub mod failure;
 pub mod graph;
+pub mod ledger;
 pub mod material;
+pub mod persistence;
 
 pub use failure::{
     aggregate_fault_definitions, ComponentConditionState, Diagnosis, DiagnosisStatus, EvidenceItem,
@@ -15,11 +17,16 @@ pub use graph::{
     DependencyType, Facility, FacilityContext, FacilityEvaluation, GraphError, OperationalState,
     System, SystemEvaluation, BASIS_POINTS_PER_WHOLE,
 };
+pub use ledger::{
+    synthetic_ledger_fixture, AccountClass, JournalLine, JournalLineInput, JournalTransaction,
+    LedgerAccount, LedgerCommand, LedgerError, LedgerEvent, LedgerState, LineSide,
+};
 pub use material::{
     aggregate_material_fixture, InputSource, InventoryStore, MaterialCommand, MaterialError,
     MaterialEvent, MaterialLimit, MaterialLot, MaterialState, QuantityUnit, RecipeDefinition,
     RecipeInput, RecipeOutput, ResourceCategory, ResourceDefinition, QUANTITY_SCALE,
 };
+pub use persistence::{CommandReceipt, ReceiptStatus, SnapshotRecord};
 
 pub const SCHEMA_VERSION: &str = "schema-0.1.0";
 pub const RULES_VERSION: &str = "rules-0.1.0";
@@ -54,6 +61,7 @@ pub enum KernelError {
     Deserialization(String),
     Failure(FailureError),
     Material(MaterialError),
+    Ledger(LedgerError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -555,6 +563,11 @@ pub fn execute(state: &mut SimulationState, command: &Command) -> Result<Transit
         command_id: command.command_id.clone(),
         idempotency_key: command.idempotency_key.clone(),
     });
+    const REPLAY_RECEIPT_WINDOW: usize = 1024;
+    if next.executed_commands.len() > REPLAY_RECEIPT_WINDOW {
+        let excess = next.executed_commands.len() - REPLAY_RECEIPT_WINDOW;
+        next.executed_commands.drain(..excess);
+    }
     next.validate()?;
     let resulting_digest = next.digest()?;
     *state = next.clone();
@@ -857,6 +870,64 @@ mod tests {
                 .quantity("resource.finished_aggregate", "grade.aggregate.standard")
                 .unwrap(),
             8
+        );
+    }
+
+    #[test]
+    fn ledger_storage_is_independent_of_simulation_snapshot_digest() {
+        let state = SimulationState::new(41).unwrap();
+        let before = state.digest().unwrap();
+        let mut ledger = synthetic_ledger_fixture();
+        ledger
+            .post(
+                0,
+                &LedgerCommand::Post {
+                    transaction_id: "transaction.synthetic.grant".to_owned(),
+                    transaction_type: "ledger.synthetic_grant".to_owned(),
+                    idempotency_key: "ledger.synthetic.grant".to_owned(),
+                    source_ref: "event.synthetic.grant".to_owned(),
+                    currency: "CRD".to_owned(),
+                    lines: vec![
+                        JournalLineInput {
+                            line_id: "line.grant.debit".to_owned(),
+                            sequence: 1,
+                            account_id: "account.system.clearing".to_owned(),
+                            side: LineSide::Debit,
+                            amount_minor: 1_000,
+                        },
+                        JournalLineInput {
+                            line_id: "line.grant.credit".to_owned(),
+                            sequence: 2,
+                            account_id: "account.synthetic.wallet".to_owned(),
+                            side: LineSide::Credit,
+                            amount_minor: 1_000,
+                        },
+                    ],
+                },
+            )
+            .unwrap();
+        assert_eq!(state.digest().unwrap(), before);
+        assert_eq!(
+            ledger.balance_minor("account.synthetic.wallet", "CRD"),
+            Ok(-1_000)
+        );
+    }
+
+    #[test]
+    fn executed_command_replay_window_is_bounded() {
+        let mut state = SimulationState::new(41).unwrap();
+        for index in 0..1_100u32 {
+            let id = format!("command.window.{index}");
+            let key = format!("idempotency.window.{index}");
+            execute(&mut state, &Command::adjust_register(id, key, 0, 1)).unwrap();
+        }
+        assert_eq!(state.executed_commands.len(), 1_024);
+        assert_eq!(
+            state
+                .executed_commands
+                .first()
+                .map(|command| command.command_id.as_str()),
+            Some("command.window.76")
         );
     }
 

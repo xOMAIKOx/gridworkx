@@ -21,6 +21,8 @@ for (const fileName of [
   "fault-definitions.schema.json",
   "material-state.schema.json",
   "material-command.schema.json",
+  "ledger-state.schema.json",
+  "ledger-command.schema.json",
   "simulation-state.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
@@ -84,6 +86,13 @@ const failureCommandCheck = ajv.getSchema("https://gridworks.example/schema/fail
 if (!failureCommandCheck || failureCommandCheck(malformedFailureCommand)) {
   throw new Error("failure command schema accepted a malformed ActivateFault payload");
 }
+const validLedgerCommand = {
+  ledger: { Post: { transaction_id: "transaction.synthetic", transaction_type: "ledger.synthetic_grant", idempotency_key: "ledger.synthetic", source_ref: "event.synthetic", currency: "CRD", lines: [
+    { line_id: "line.debit", sequence: 1, account_id: "account.system", side: "Debit", amount_minor: 1000 },
+    { line_id: "line.credit", sequence: 2, account_id: "account.wallet", side: "Credit", amount_minor: 1000 },
+  ] } },
+};
+validate("https://gridworks.example/schema/ledger-command.schema.json", validLedgerCommand, "ledger command fixture");
 
 const configFiles = fs.readdirSync(path.join(contentRoot, "config")).filter((fileName) => fileName.endsWith(".json"));
 const semanticKeys = new Set(["config_id", "policy_id", "policy_version", "manifest_id", "principal_id", "system_principal", "layer_id", "mode_id", "asset_id", "catalogue_id"]);

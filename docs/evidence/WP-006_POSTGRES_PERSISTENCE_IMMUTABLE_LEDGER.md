@@ -1,0 +1,53 @@
+# WP-006 PostgreSQL Persistence and Immutable Ledger Evidence
+
+## Persistence boundaries
+
+Rust remains authoritative for simulation, graph, failure and material transitions. WP-006 adds repository/domain contracts for persistence without moving simulation or accounting rules into SQL or Go.
+
+`SnapshotRecord` persists the canonical JSON snapshot payload, SHA-256 digest, schema/rules/kernel versions, operational time, owner reference and previous-snapshot linkage. Loading validates the payload through the Rust snapshot parser and rejects version, kernel, operational-time or digest mismatches.
+
+`CommandReceipt` is the durable identity boundary for command ID, idempotency key, command type, status, effective time and before/after state digests. The in-memory `executed_commands` vector is now a bounded 1,024-entry replay window; long-lived duplicate/economic protection belongs to PostgreSQL `command_receipts` uniqueness rather than unbounded snapshots.
+
+## PostgreSQL migration
+
+`db/migrations/0002_wp006_persistence_ledger.sql` targets PostgreSQL 18-compatible standard features and defines:
+
+- `simulation_snapshots`;
+- `command_receipts`;
+- `ledger_accounts`;
+- `journal_transactions`;
+- `journal_lines`;
+- an immutable `ledger_account_balances` derived view.
+
+The migration is transaction-wrapped, rerunnable under the repository convention, contains no credentials/roles/host paths and performs no provisioning.
+
+## Ledger model
+
+The Rust ledger uses checked signed `i64` minor units with a separate three-letter currency code. `LedgerState` contains stable accounts and immutable journal transactions with ordered debit/credit lines. Every posted transaction requires positive amounts, known accounts, one currency and exact debit/credit equality.
+
+Duplicate idempotency keys return a deterministic duplicate event without adding money. Reversals append an opposite-line transaction referencing the original; the original transaction and lines are never mutated. Balances are derived by summing immutable journal lines, with debit positive and credit negative for the account view.
+
+The synthetic proof transfers 1,000 `CRD` minor units from a system clearing account to a synthetic wallet, proves duplicate rejection, and proves reversal returns both derived balances to zero. Physical WP-005 quantities remain entirely separate from monetary amounts.
+
+## Verification
+
+Rust tests cover balanced/multi-line semantics, imbalance, mixed currency, invalid/overflow amounts, duplicate posting, append-only reversal, derived balances, snapshot persistence integrity, kernel ledger command integration and bounded replay history. The migration shape checker verifies required tables, uniqueness, immutability trigger, derived view, transaction wrapping and absence of destructive/provisioning operations.
+
+No live PostgreSQL server was installed or started on ERIS. Any live-PG execution is limited to an already-authorized CI/test context; no host, service, role, database or port mutation occurred.
+
+## R1–R4 remediation evidence
+
+- Ledger state is no longer owned by `SimulationState`; ledger posting/reversal remains a separate Rust domain operation and cannot change simulation snapshot JSON or digest. The simulation schema no longer contains a ledger field.
+- PostgreSQL journal transactions use a draft-to-post transition with a deferred balance constraint trigger requiring at least two lines, positive debit total and exact debit/credit equality at commit. Line currency must match both transaction and account currency.
+- Reversal integrity is enforced in Rust and PostgreSQL: one original can have at most one reversal, persisted line IDs/transaction IDs are consistent, reversal targets exist and are not themselves reversals, and a second reversal is rejected without mutation.
+- Snapshot digest lookup is indexed but non-unique. Distinct snapshot IDs/owners may persist identical canonical state digests; snapshot ID remains the durable identity.
+
+## R5–R6 SQL lifecycle evidence
+
+The posted lifecycle is now closed at both mutation points: a deferred balance check validates a draft-to-post transition, a posting identity guard permits only `status`/`posted_at` lifecycle changes, and a posted-line INSERT guard rejects new lines after posting. Existing UPDATE/DELETE journal immutability remains active. Structural validation asserts all three lifecycle guards and the identity-freeze contract.
+
+## R7–R8 lifecycle concurrency/audit-time evidence
+
+Posted-line insertion now acquires a `FOR SHARE` lock on the parent transaction row before reading status. The draft→posted update takes the conflicting row lock, so either line insertion commits first and posting observes it, or posting commits first and a later line insert observes `posted` and rejects. The design uses PostgreSQL row locking, not a process-local mutex.
+
+Draft inserts require `posted_at IS NULL`; draft→posted rejects caller-supplied `posted_at` and assigns `CURRENT_TIMESTAMP` inside the trigger. `posted_at` is therefore trigger-owned lifecycle metadata.

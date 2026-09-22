@@ -1,0 +1,16 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/ledger-command.schema.json",
+  "title":"GRIDWORKS ledger command payload",
+  "type":"object",
+  "required":["ledger"],
+  "properties":{"ledger":{"oneOf":[{"$ref":"#/$defs/post"},{"$ref":"#/$defs/reverse"}]}},
+  "additionalProperties":false,
+  "$defs":{
+    "id":{"type":"string","minLength":1},
+    "currency":{"type":"string","pattern":"^[A-Z]{3}$"},
+    "line":{"type":"object","required":["line_id","sequence","account_id","side","amount_minor"],"properties":{"line_id":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"account_id":{"$ref":"#/$defs/id"},"side":{"enum":["Debit","Credit"]},"amount_minor":{"type":"integer","minimum":1}},"additionalProperties":false},
+    "post":{"type":"object","required":["Post"],"properties":{"Post":{"type":"object","required":["transaction_id","transaction_type","idempotency_key","source_ref","currency","lines"],"properties":{"transaction_id":{"$ref":"#/$defs/id"},"transaction_type":{"$ref":"#/$defs/id"},"idempotency_key":{"$ref":"#/$defs/id"},"source_ref":{"$ref":"#/$defs/id"},"currency":{"$ref":"#/$defs/currency"},"lines":{"type":"array","minItems":2,"items":{"$ref":"#/$defs/line"}}},"additionalProperties":false}},"additionalProperties":false},
+    "reverse":{"type":"object","required":["Reverse"],"properties":{"Reverse":{"type":"object","required":["transaction_id","reversal_id","idempotency_key"],"properties":{"transaction_id":{"$ref":"#/$defs/id"},"reversal_id":{"$ref":"#/$defs/id"},"idempotency_key":{"$ref":"#/$defs/id"}},"additionalProperties":false}},"additionalProperties":false}
+  }
+}
