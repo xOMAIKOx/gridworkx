@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 
 pub mod failure;
 pub mod graph;
+pub mod material;
 
 pub use failure::{
     aggregate_fault_definitions, ComponentConditionState, Diagnosis, DiagnosisStatus, EvidenceItem,
@@ -13,6 +14,11 @@ pub use graph::{
     aggregate_plant_fixture, BottleneckEvidence, BottleneckReason, Component, DependencyEdge,
     DependencyType, Facility, FacilityContext, FacilityEvaluation, GraphError, OperationalState,
     System, SystemEvaluation, BASIS_POINTS_PER_WHOLE,
+};
+pub use material::{
+    aggregate_material_fixture, InputSource, InventoryStore, MaterialCommand, MaterialError,
+    MaterialEvent, MaterialLimit, MaterialLot, MaterialState, QuantityUnit, RecipeDefinition,
+    RecipeInput, RecipeOutput, ResourceCategory, ResourceDefinition, QUANTITY_SCALE,
 };
 
 pub const SCHEMA_VERSION: &str = "schema-0.1.0";
@@ -47,6 +53,7 @@ pub enum KernelError {
     Serialization(String),
     Deserialization(String),
     Failure(FailureError),
+    Material(MaterialError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,6 +124,8 @@ pub enum ProofPayload {
     SeededPulse { options: Vec<i64> },
     #[serde(rename = "failure")]
     Failure(FailureCommand),
+    #[serde(rename = "material")]
+    Material(MaterialCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,6 +232,8 @@ pub struct SimulationState {
     pub facilities: Vec<Facility>,
     #[serde(default)]
     pub failure: FailureState,
+    #[serde(default)]
+    pub material: MaterialState,
 }
 
 impl SimulationState {
@@ -241,6 +252,7 @@ impl SimulationState {
             executed_commands: Vec::new(),
             facilities: Vec::new(),
             failure: FailureState::default(),
+            material: MaterialState::default(),
         };
         state.validate()?;
         Ok(state)
@@ -289,6 +301,9 @@ impl SimulationState {
         self.failure
             .validate_against_facilities(&self.facilities)
             .map_err(KernelError::Failure)?;
+        self.material
+            .validate(&self.facilities)
+            .map_err(KernelError::Material)?;
         for (index, current) in self.executed_commands.iter().enumerate() {
             if current.command_id.is_empty() || current.idempotency_key.is_empty() {
                 return Err(KernelError::InvalidState(
@@ -318,6 +333,7 @@ impl SimulationState {
             .facilities
             .sort_by(|left, right| left.facility_id.cmp(&right.facility_id));
         canonical.failure = self.failure.canonicalized();
+        canonical.material = self.material.canonicalized();
         canonical
     }
 
@@ -415,6 +431,8 @@ pub enum KernelEvent {
     },
     #[serde(rename = "failure")]
     Failure(FailureEvent),
+    #[serde(rename = "material")]
+    Material(MaterialEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -512,6 +530,21 @@ pub fn execute(state: &mut SimulationState, command: &Command) -> Result<Transit
         (failure_type, ProofPayload::Failure(_)) if failure_type.starts_with("failure.") => {
             return Err(KernelError::MalformedCommand(
                 "failure payload does not match command type".to_owned(),
+            ))
+        }
+        (material_type, ProofPayload::Material(command))
+            if material_type.starts_with("material.") =>
+        {
+            let facilities = next.facilities.clone();
+            let failure = next.failure.clone();
+            next.material
+                .execute(&facilities, &failure, command)
+                .map(KernelEvent::Material)
+                .map_err(KernelError::Material)?
+        }
+        (material_type, ProofPayload::Material(_)) if material_type.starts_with("material.") => {
+            return Err(KernelError::MalformedCommand(
+                "material payload does not match command type".to_owned(),
             ))
         }
         (unsupported, _) => {
@@ -779,6 +812,51 @@ mod tests {
         );
         let restored = SimulationState::from_json(&state.to_json().unwrap()).unwrap();
         assert_eq!(restored.digest(), state.digest());
+    }
+
+    #[test]
+    fn material_command_uses_kernel_envelope_and_replay_state() {
+        let mut state =
+            SimulationState::with_facilities(41, vec![aggregate_plant_fixture()]).unwrap();
+        state.material = aggregate_material_fixture();
+        let command = Command {
+            command_id: "command.material.production".to_owned(),
+            command_type: "material.production".to_owned(),
+            schema_version: SCHEMA_VERSION.to_owned(),
+            rules_version: RULES_VERSION.to_owned(),
+            effective_time_ms: 0,
+            idempotency_key: "idempotency.material.production".to_owned(),
+            payload: ProofPayload::Material(MaterialCommand::ExecuteProduction {
+                run_id: "run.aggregate.kernel".to_owned(),
+                recipe_id: "recipe.aggregate_crush".to_owned(),
+                facility_id: "facility.aggregate_plant_fixture".to_owned(),
+                input_sources: vec![
+                    InputSource {
+                        resource_id: "resource.raw_feed".to_owned(),
+                        store_id: "inventory.aggregate_feed".to_owned(),
+                    },
+                    InputSource {
+                        resource_id: "resource.limestone".to_owned(),
+                        store_id: "inventory.aggregate_feed".to_owned(),
+                    },
+                ],
+                output_inventory_id: "inventory.aggregate_finished".to_owned(),
+                requested_runs: 1,
+            }),
+        };
+        let transition = execute(&mut state, &command).unwrap();
+        assert!(matches!(
+            transition.events[0],
+            KernelEvent::Material(MaterialEvent::ProductionExecuted {
+                accepted_runs: 1,
+                ..
+            })
+        ));
+        assert_eq!(
+            state.material.inventories[1]
+                .quantity("resource.finished_aggregate", "grade.aggregate.standard"),
+            8
+        );
     }
 
     #[test]
