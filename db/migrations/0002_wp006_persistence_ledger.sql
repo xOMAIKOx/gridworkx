@@ -74,6 +74,15 @@ BEGIN
        AND TG_OP = 'UPDATE'
        AND OLD.status = 'draft'
        AND NEW.status = 'posted' THEN
+        IF NEW.transaction_id IS DISTINCT FROM OLD.transaction_id
+           OR NEW.transaction_type IS DISTINCT FROM OLD.transaction_type
+           OR NEW.effective_time_ms IS DISTINCT FROM OLD.effective_time_ms
+           OR NEW.idempotency_key IS DISTINCT FROM OLD.idempotency_key
+           OR NEW.source_ref IS DISTINCT FROM OLD.source_ref
+           OR NEW.currency IS DISTINCT FROM OLD.currency
+           OR NEW.reversal_of IS DISTINCT FROM OLD.reversal_of THEN
+            RAISE EXCEPTION 'draft-to-posted transition cannot change accounting identity fields';
+        END IF;
         NEW.posted_at := COALESCE(NEW.posted_at, CURRENT_TIMESTAMP);
         RETURN NEW;
     END IF;
@@ -126,6 +135,26 @@ DROP TRIGGER IF EXISTS journal_lines_immutable ON gridworks.journal_lines;
 CREATE TRIGGER journal_lines_immutable
     BEFORE UPDATE OR DELETE ON gridworks.journal_lines
     FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_posted_journal_mutation();
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_posted_journal_line_insert()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE tx_status text;
+BEGIN
+    SELECT status INTO tx_status FROM gridworks.journal_transactions WHERE transaction_id = NEW.transaction_id;
+    IF tx_status IS NULL THEN
+        RAISE EXCEPTION 'journal transaction does not exist';
+    END IF;
+    IF tx_status = 'posted' THEN
+        RAISE EXCEPTION 'journal lines cannot be inserted after transaction is posted';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS journal_lines_posted_insert_guard ON gridworks.journal_lines;
+CREATE TRIGGER journal_lines_posted_insert_guard
+    BEFORE INSERT ON gridworks.journal_lines
+    FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_posted_journal_line_insert();
 
 CREATE OR REPLACE FUNCTION gridworks.validate_journal_line_currency()
 RETURNS trigger LANGUAGE plpgsql AS $$

@@ -41,3 +41,7 @@ No live PostgreSQL server was installed or started on ERIS. Any live-PG executio
 - PostgreSQL journal transactions use a draft-to-post transition with a deferred balance constraint trigger requiring at least two lines, positive debit total and exact debit/credit equality at commit. Line currency must match both transaction and account currency.
 - Reversal integrity is enforced in Rust and PostgreSQL: one original can have at most one reversal, persisted line IDs/transaction IDs are consistent, reversal targets exist and are not themselves reversals, and a second reversal is rejected without mutation.
 - Snapshot digest lookup is indexed but non-unique. Distinct snapshot IDs/owners may persist identical canonical state digests; snapshot ID remains the durable identity.
+
+## R5–R6 SQL lifecycle evidence
+
+The posted lifecycle is now closed at both mutation points: a deferred balance check validates a draft-to-post transition, a posting identity guard permits only `status`/`posted_at` lifecycle changes, and a posted-line INSERT guard rejects new lines after posting. Existing UPDATE/DELETE journal immutability remains active. Structural validation asserts all three lifecycle guards and the identity-freeze contract.

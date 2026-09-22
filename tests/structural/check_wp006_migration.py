@@ -14,6 +14,8 @@ required = [
     "journal_transactions_one_reversal_idx",
     "journal_transactions_balance_guard",
     "journal_lines_currency_guard",
+    "journal_lines_posted_insert_guard",
+    "draft-to-posted transition cannot change accounting identity fields",
     "status text NOT NULL DEFAULT 'draft'",
     "UNIQUE (transaction_id, line_sequence)",
     "prevent_posted_journal_mutation",
