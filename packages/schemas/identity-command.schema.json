@@ -1,0 +1,12 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/identity-command.schema.json",
+  "title":"GRIDWORKS identity/profile command contracts",
+  "oneOf":[{"$ref":"#/$defs/guest"},{"$ref":"#/$defs/link"},{"$ref":"#/$defs/profile"}],
+  "$defs":{
+    "id":{"type":"string","pattern":"^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$","minLength":3,"maxLength":160},
+    "guest":{"type":"object","required":["mutation_type","idempotency_key"],"properties":{"mutation_type":{"const":"identity.guest_issue"},"idempotency_key":{"$ref":"#/$defs/id"}},"additionalProperties":false},
+    "link":{"type":"object","required":["mutation_type","idempotency_key","session_id","provider","issuer","subject","verified","proof_reference"],"properties":{"mutation_type":{"const":"identity.link_external"},"idempotency_key":{"$ref":"#/$defs/id"},"session_id":{"$ref":"#/$defs/id"},"provider":{"type":"string","minLength":1},"issuer":{"type":"string","pattern":"^https?://[^\\s]+$"},"subject":{"type":"string","minLength":1},"verified":{"const":true},"proof_reference":{"type":"string","minLength":1}},"additionalProperties":false},
+    "profile":{"type":"object","required":["mutation_type","idempotency_key","player_id","display_name","locale","timezone"],"properties":{"mutation_type":{"const":"profile.update"},"idempotency_key":{"$ref":"#/$defs/id"},"player_id":{"$ref":"#/$defs/id"},"display_name":{"type":"string","minLength":1,"maxLength":80},"locale":{"type":"string","minLength":2,"maxLength":16},"timezone":{"type":"string","minLength":1,"maxLength":128}},"additionalProperties":false}
+  }
+}

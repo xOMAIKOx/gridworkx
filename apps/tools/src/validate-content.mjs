@@ -23,6 +23,8 @@ for (const fileName of [
   "material-command.schema.json",
   "ledger-state.schema.json",
   "ledger-command.schema.json",
+  "identity-state.schema.json",
+  "identity-command.schema.json",
   "simulation-state.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
@@ -93,6 +95,8 @@ const validLedgerCommand = {
   ] } },
 };
 validate("https://gridworks.example/schema/ledger-command.schema.json", validLedgerCommand, "ledger command fixture");
+const validIdentityCommand = { mutation_type: "identity.guest_issue", idempotency_key: "identity.request.fixture" };
+validate("https://gridworks.example/schema/identity-command.schema.json", validIdentityCommand, "identity command fixture");
 
 const configFiles = fs.readdirSync(path.join(contentRoot, "config")).filter((fileName) => fileName.endsWith(".json"));
 const semanticKeys = new Set(["config_id", "policy_id", "policy_version", "manifest_id", "principal_id", "system_principal", "layer_id", "mode_id", "asset_id", "catalogue_id"]);

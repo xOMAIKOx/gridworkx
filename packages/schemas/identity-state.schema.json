@@ -1,0 +1,21 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/identity-state.schema.json",
+  "title":"GRIDWORKS guest identity and player profile state",
+  "type":"object",
+  "required":["account","player","profile","session"],
+  "properties":{
+    "account":{"$ref":"#/$defs/account"},
+    "player":{"$ref":"#/$defs/player"},
+    "profile":{"$ref":"#/$defs/internalProfile"},
+    "session":{"$ref":"#/$defs/session"}
+  },
+  "additionalProperties":false,
+  "$defs":{
+    "id":{"type":"string","pattern":"^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$","minLength":3,"maxLength":160},
+    "account":{"type":"object","required":["account_id","status","authority_version","created_at"],"properties":{"account_id":{"$ref":"#/$defs/id"},"status":{"enum":["guest","protected","suspended","recovery_restricted"]},"authority_version":{"type":"integer","minimum":1},"created_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "player":{"type":"object","required":["player_id","account_id","created_at"],"properties":{"player_id":{"$ref":"#/$defs/id"},"account_id":{"$ref":"#/$defs/id"},"created_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "session":{"type":"object","required":["session_id","account_id","token_digest","created_at","last_used_at","expires_at"],"properties":{"session_id":{"$ref":"#/$defs/id"},"account_id":{"$ref":"#/$defs/id"},"token_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},"created_at":{"type":"string","format":"date-time"},"last_used_at":{"type":"string","format":"date-time"},"expires_at":{"type":"string","format":"date-time"},"revoked_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}]}},"additionalProperties":false},
+    "internalProfile":{"type":"object","required":["player_id","account_id","handle","handle_canonical","handle_skeleton","display_name","locale","timezone","visibility","dm_policy","discoverable","notification_preferences","created_at","updated_at"],"properties":{"player_id":{"$ref":"#/$defs/id"},"account_id":{"$ref":"#/$defs/id"},"handle":{"type":"string","minLength":3,"maxLength":32},"handle_canonical":{"type":"string","minLength":3,"maxLength":64},"handle_skeleton":{"type":"string","minLength":3,"maxLength":64},"display_name":{"type":"string","minLength":1,"maxLength":80},"avatar_asset_id":{"type":"string"},"bio":{"type":"string","maxLength":1000},"locale":{"type":"string","minLength":2,"maxLength":16},"timezone":{"type":"string","minLength":1,"maxLength":128},"visibility":{"enum":["public","private"]},"dm_policy":{"enum":["everyone","nobody"]},"discoverable":{"type":"boolean"},"notification_preferences":{"type":"object","additionalProperties":{"type":"boolean"}},"created_at":{"type":"string","format":"date-time"},"updated_at":{"type":"string","format":"date-time"}},"additionalProperties":false}
+  }
+}
