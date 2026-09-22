@@ -13,11 +13,12 @@ CREATE TABLE IF NOT EXISTS gridworks.accounts (
 CREATE TABLE IF NOT EXISTS gridworks.players (
     player_id text PRIMARY KEY,
     account_id text NOT NULL UNIQUE REFERENCES gridworks.accounts(account_id) ON DELETE RESTRICT,
-    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (player_id, account_id)
 );
 
 CREATE TABLE IF NOT EXISTS gridworks.player_profiles (
-    player_id text PRIMARY KEY REFERENCES gridworks.players(player_id) ON DELETE RESTRICT,
+    player_id text PRIMARY KEY,
     account_id text NOT NULL REFERENCES gridworks.accounts(account_id) ON DELETE RESTRICT,
     handle_display text NOT NULL,
     handle_canonical text NOT NULL,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS gridworks.player_profiles (
     notification_preferences jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT player_profiles_player_account_fk FOREIGN KEY (player_id, account_id) REFERENCES gridworks.players(player_id, account_id) ON DELETE RESTRICT,
     CHECK (length(handle_display) BETWEEN 3 AND 32),
     CHECK (length(display_name) BETWEEN 1 AND 80),
     CHECK (length(locale) BETWEEN 2 AND 16),
@@ -63,7 +65,7 @@ CREATE TABLE IF NOT EXISTS gridworks.account_identity_links (
     subject text NOT NULL,
     identity_key text NOT NULL UNIQUE,
     linked_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    proof_reference text,
+    proof_reference text NOT NULL,
     revoked_at timestamptz,
     UNIQUE (issuer, subject)
 );

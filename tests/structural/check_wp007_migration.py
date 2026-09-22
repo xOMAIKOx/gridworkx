@@ -16,6 +16,8 @@ required = [
     "token_digest char(64)",
     "UNIQUE (issuer, subject)",
     "identity_mutation_receipts",
+    "player_profiles_player_account_fk",
+    "proof_reference text NOT NULL",
 ]
 for marker in required:
     if marker not in text:

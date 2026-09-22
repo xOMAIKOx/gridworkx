@@ -29,3 +29,13 @@ Handles use NFKC normalization, lower-casing and a deterministic pinned strategy
 Go domain tests cover atomic/idempotent guest issuance, raw-secret absence, session revocation, verified-link proof, guest identity preservation, cross-account conflict, normalization/case/confusable/reserved/invisible handle cases, locale/timezone/display-name validation and public/private separation. Structural validation checks the migration contract and strict identity schemas.
 
 No WP-008 company ownership, WP-009 HTTP/API, live provider integration, messaging, notification delivery, deployment, host/database provisioning or container runtime work was performed.
+
+## REQUEST_CHANGES remediation evidence
+
+- Link mutations now require an explicit idempotency key and deterministic request digest. Same key plus same payload replays the link; contradictory reuse rejects with `ErrIdempotencyConflict`.
+- Guest idempotency receipts store only account/player/session references and request digest. A duplicate issuance never recovers or persists the raw session token; raw token material exists only in the one-time result.
+- Secure ID generation uses an injectable `io.Reader`; every randomness error propagates before state/handle mutation. Failure-injection tests prove no partial identity state.
+- External link proof references are retained in the domain record and require non-empty verified proof metadata.
+- Player/profile SQL uses a composite `(player_id, account_id)` foreign key, preventing cross-account profile association.
+- Added a strict public-profile schema and fixture; public fields cannot carry account, session, provider or security fields.
+- Canonical handle comparison uses pinned `golang.org/x/text v0.21.0` NFKC plus Unicode case-folding and an explicitly versioned GRIDWORKS Latin/Cyrillic confusable subset. The reserved baseline is represented in `packages/content/config/reserved-handles.json`; broader UTS #39 coverage is a future versioned algorithm change, not implied by this subset.
