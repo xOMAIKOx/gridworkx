@@ -39,3 +39,7 @@ No WP-008 company ownership, WP-009 HTTP/API, live provider integration, messagi
 - Player/profile SQL uses a composite `(player_id, account_id)` foreign key, preventing cross-account profile association.
 - Added a strict public-profile schema and fixture; public fields cannot carry account, session, provider or security fields.
 - Canonical handle comparison uses pinned `golang.org/x/text v0.21.0` NFKC plus Unicode case-folding and an explicitly versioned GRIDWORKS Latin/Cyrillic confusable subset. The reserved baseline is represented in `packages/content/config/reserved-handles.json`; broader UTS #39 coverage is a future versioned algorithm change, not implied by this subset.
+
+## Unified identity mutation receipt namespace
+
+Guest issuance and external-link mutations now share one logical idempotency receipt map keyed by the same mutation key namespace. Each receipt retains mutation type, request digest and safe result references only. Same key plus same mutation/payload replays deterministically; same key plus a different mutation type or payload returns `ErrIdempotencyConflict`. The cross-mutation regression test proves a guest-issuance key cannot be reused for external linking and that no link state is mutated. Raw session tokens remain excluded from receipt state.

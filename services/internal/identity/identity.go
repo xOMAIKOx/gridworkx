@@ -129,35 +129,32 @@ type IdentityStore interface {
 	RevokeSession(sessionToken string, now time.Time) error
 }
 
-type guestReceipt struct {
+type identityReceipt struct {
+	MutationType  string
+	RequestDigest string
 	AccountID     string
 	PlayerID      string
 	SessionID     string
-	RequestDigest string
-}
-type mutationReceipt struct {
-	RequestDigest string
 	ResultRef     string
 }
 
 type InMemoryStore struct {
-	mu               sync.Mutex
-	random           io.Reader
-	accounts         map[string]Account
-	players          map[string]Player
-	profiles         map[string]PlayerProfile
-	sessions         map[string]SessionRecord
-	links            map[string]ExternalIdentity
-	receipts         map[string]guestReceipt
-	mutationReceipts map[string]mutationReceipt
-	handles          map[string]string
-	skeletons        map[string]string
-	reserved         map[string]struct{}
+	mu        sync.Mutex
+	random    io.Reader
+	accounts  map[string]Account
+	players   map[string]Player
+	profiles  map[string]PlayerProfile
+	sessions  map[string]SessionRecord
+	links     map[string]ExternalIdentity
+	receipts  map[string]identityReceipt
+	handles   map[string]string
+	skeletons map[string]string
+	reserved  map[string]struct{}
 }
 
 func NewInMemoryStore() *InMemoryStore { return NewInMemoryStoreWithRandom(rand.Reader) }
 func NewInMemoryStoreWithRandom(random io.Reader) *InMemoryStore {
-	return &InMemoryStore{random: random, accounts: map[string]Account{}, players: map[string]Player{}, profiles: map[string]PlayerProfile{}, sessions: map[string]SessionRecord{}, links: map[string]ExternalIdentity{}, receipts: map[string]guestReceipt{}, mutationReceipts: map[string]mutationReceipt{}, handles: map[string]string{}, skeletons: map[string]string{}, reserved: map[string]struct{}{"gridworks": {}, "admin": {}, "administrator": {}, "moderator": {}, "support": {}, "system": {}, "official": {}}}
+	return &InMemoryStore{random: random, accounts: map[string]Account{}, players: map[string]Player{}, profiles: map[string]PlayerProfile{}, sessions: map[string]SessionRecord{}, links: map[string]ExternalIdentity{}, receipts: map[string]identityReceipt{}, handles: map[string]string{}, skeletons: map[string]string{}, reserved: map[string]struct{}{"gridworks": {}, "admin": {}, "administrator": {}, "moderator": {}, "support": {}, "system": {}, "official": {}}}
 }
 
 func (s *InMemoryStore) IssueGuest(idempotencyKey string, now time.Time) (GuestIssuanceResult, error) {
@@ -167,6 +164,9 @@ func (s *InMemoryStore) IssueGuest(idempotencyKey string, now time.Time) (GuestI
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if receipt, ok := s.receipts[idempotencyKey]; ok {
+		if receipt.MutationType != "identity.guest_issue" || receipt.RequestDigest != requestDigest("identity.guest_issue", idempotencyKey) {
+			return GuestIssuanceResult{}, ErrIdempotencyConflict
+		}
 		return s.resultFor(receipt, ""), nil
 	}
 	accountID, err := opaqueID(s.random, "account")
@@ -201,10 +201,10 @@ func (s *InMemoryStore) IssueGuest(idempotencyKey string, now time.Time) (GuestI
 	session := SessionRecord{SessionID: sessionID, AccountID: accountID, TokenDigest: digestToken(token), CreatedAt: now, LastUsedAt: now, ExpiresAt: now.Add(30 * 24 * time.Hour)}
 	result := GuestIssuanceResult{Account: account, Player: player, Profile: profile, Session: session, RawSessionToken: token}
 	s.accounts[accountID], s.players[playerID], s.profiles[playerID], s.sessions[sessionID] = account, player, profile, session
-	s.receipts[idempotencyKey] = guestReceipt{AccountID: accountID, PlayerID: playerID, SessionID: sessionID, RequestDigest: requestDigest(idempotencyKey)}
+	s.receipts[idempotencyKey] = identityReceipt{MutationType: "identity.guest_issue", AccountID: accountID, PlayerID: playerID, SessionID: sessionID, RequestDigest: requestDigest("identity.guest_issue", idempotencyKey)}
 	return result, nil
 }
-func (s *InMemoryStore) resultFor(receipt guestReceipt, rawToken string) GuestIssuanceResult {
+func (s *InMemoryStore) resultFor(receipt identityReceipt, rawToken string) GuestIssuanceResult {
 	return GuestIssuanceResult{Account: s.accounts[receipt.AccountID], Player: s.players[receipt.PlayerID], Profile: s.profiles[receipt.PlayerID], Session: s.sessions[receipt.SessionID], RawSessionToken: rawToken}
 }
 
@@ -221,9 +221,9 @@ func (s *InMemoryStore) LinkExternal(idempotencyKey string, sessionToken string,
 	if !assertion.Verified || strings.TrimSpace(assertion.Provider) == "" || strings.TrimSpace(assertion.Issuer) == "" || strings.TrimSpace(assertion.Subject) == "" || strings.TrimSpace(assertion.ProofReference) == "" {
 		return ExternalIdentity{}, ErrUnverifiedIdentity
 	}
-	digest := requestDigest(session.AccountID, assertion.Provider, assertion.Issuer, assertion.Subject, assertion.ProofReference)
-	if receipt, ok := s.mutationReceipts[idempotencyKey]; ok {
-		if receipt.RequestDigest != digest {
+	digest := requestDigest("identity.link_external", session.AccountID, assertion.Provider, assertion.Issuer, assertion.Subject, assertion.ProofReference)
+	if receipt, ok := s.receipts[idempotencyKey]; ok {
+		if receipt.MutationType != "identity.link_external" || receipt.RequestDigest != digest {
 			return ExternalIdentity{}, ErrIdempotencyConflict
 		}
 		for _, link := range s.links {
@@ -236,7 +236,7 @@ func (s *InMemoryStore) LinkExternal(idempotencyKey string, sessionToken string,
 	key := assertion.Issuer + "\x00" + assertion.Subject
 	if existing, ok := s.links[key]; ok {
 		if existing.AccountID == session.AccountID {
-			s.mutationReceipts[idempotencyKey] = mutationReceipt{RequestDigest: digest, ResultRef: existing.LinkID}
+			s.receipts[idempotencyKey] = identityReceipt{MutationType: "identity.link_external", RequestDigest: digest, AccountID: session.AccountID, ResultRef: existing.LinkID}
 			return existing, nil
 		}
 		return ExternalIdentity{}, ErrExternalIdentityConflict
@@ -247,7 +247,7 @@ func (s *InMemoryStore) LinkExternal(idempotencyKey string, sessionToken string,
 	}
 	link := ExternalIdentity{LinkID: linkID, AccountID: session.AccountID, Provider: assertion.Provider, Issuer: assertion.Issuer, Subject: assertion.Subject, IdentityKey: key, ProofReference: assertion.ProofReference, LinkedAt: now}
 	s.links[key] = link
-	s.mutationReceipts[idempotencyKey] = mutationReceipt{RequestDigest: digest, ResultRef: linkID}
+	s.receipts[idempotencyKey] = identityReceipt{MutationType: "identity.link_external", RequestDigest: digest, AccountID: session.AccountID, ResultRef: linkID}
 	account := s.accounts[session.AccountID]
 	account.Status = AccountProtected
 	account.AuthorityVersion++

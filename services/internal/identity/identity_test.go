@@ -124,3 +124,22 @@ func TestLinkIdempotencyAndRandomFailureAreSafe(t *testing.T) {
 		t.Fatal("random failure mutated identity state")
 	}
 }
+
+func TestGuestAndLinkShareOneIdempotencyNamespace(t *testing.T) {
+	store := NewInMemoryStore()
+	now := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+	guest, err := store.IssueGuest("shared-mutation-key", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.LinkExternal("shared-mutation-key", guest.RawSessionToken, ExternalIdentityAssertion{Provider: "google", Issuer: "https://accounts.google.example", Subject: "cross", Verified: true, ProofReference: "proof-cross"}, now)
+	if err != ErrIdempotencyConflict {
+		t.Fatalf("expected cross-mutation conflict, got %v", err)
+	}
+	if len(store.links) != 0 {
+		t.Fatal("cross-mutation conflict mutated link state")
+	}
+	if receipt := store.receipts["shared-mutation-key"]; receipt.MutationType != "identity.guest_issue" {
+		t.Fatal("receipt mutation type was not retained")
+	}
+}
