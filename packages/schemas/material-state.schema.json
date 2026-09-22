@@ -1,0 +1,18 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/material-state.schema.json",
+  "title":"GRIDWORKS material state",
+  "type":"object",
+  "required":["resources","recipes","inventories"],
+  "properties":{
+    "resources":{"type":"array","items":{"type":"object","required":["resource_id","category","unit","grade_ids","rules_version"],"properties":{"resource_id":{"$ref":"semantic-id.schema.json"},"category":{"enum":["RawMaterial","Intermediate","FinishedGood","Waste","Byproduct"]},"unit":{"const":"BaseQuantity"},"grade_ids":{"type":"array","items":{"$ref":"semantic-id.schema.json"},"minItems":1},"rules_version":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "recipes":{"type":"array","items":{"type":"object","required":["recipe_id","facility_type_ids","inputs","outputs","rules_version"],"properties":{"recipe_id":{"$ref":"semantic-id.schema.json"},"facility_type_ids":{"type":"array","items":{"type":"string","minLength":1},"minItems":1},"inputs":{"type":"array","items":{"$ref":"#/$defs/input"},"minItems":1},"outputs":{"type":"array","items":{"$ref":"#/$defs/output"},"minItems":1},"rules_version":{"type":"string","minLength":1}},"additionalProperties":false}},
+    "inventories":{"type":"array","items":{"type":"object","required":["inventory_id","facility_id","capacity","permitted_resource_ids","lots"],"properties":{"inventory_id":{"$ref":"semantic-id.schema.json"},"facility_id":{"anyOf":[{"$ref":"semantic-id.schema.json"},{"type":"null"}]},"capacity":{"type":"integer","minimum":1},"permitted_resource_ids":{"type":"array","items":{"$ref":"semantic-id.schema.json"},"description":"Empty means no resources are permitted."},"lots":{"type":"array","items":{"$ref":"#/$defs/lot"}}},"additionalProperties":false}}
+  },
+  "$defs":{
+    "input":{"type":"object","required":["resource_id","grade_id","quantity_per_run"],"properties":{"resource_id":{"$ref":"semantic-id.schema.json"},"grade_id":{"$ref":"semantic-id.schema.json"},"quantity_per_run":{"type":"integer","minimum":1}},"additionalProperties":false},
+    "output":{"type":"object","required":["resource_id","grade_id","quantity_per_run","yield_bps"],"properties":{"resource_id":{"$ref":"semantic-id.schema.json"},"grade_id":{"$ref":"semantic-id.schema.json"},"quantity_per_run":{"type":"integer","minimum":1},"yield_bps":{"type":"integer","minimum":0,"maximum":10000}},"additionalProperties":false},
+    "lot":{"type":"object","required":["resource_id","grade_id","quantity"],"properties":{"resource_id":{"$ref":"semantic-id.schema.json"},"grade_id":{"$ref":"semantic-id.schema.json"},"quantity":{"type":"integer","minimum":1}},"additionalProperties":false}
+  },
+  "additionalProperties":false
+}

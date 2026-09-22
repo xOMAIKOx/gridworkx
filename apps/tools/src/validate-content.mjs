@@ -19,6 +19,8 @@ for (const fileName of [
   "failure-state.schema.json",
   "failure-command.schema.json",
   "fault-definitions.schema.json",
+  "material-state.schema.json",
+  "material-command.schema.json",
   "simulation-state.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
@@ -55,8 +57,10 @@ const assertUnique = (values, label) => {
 const domainCatalog = readJson(path.join(contentRoot, "domain-catalog.json"));
 const contentManifest = readJson(path.join(contentRoot, "content-manifest.json"));
 const faultDefinitions = readJson(path.join(contentRoot, "config", "faults.json"));
+const materialDefinitions = readJson(path.join(contentRoot, "config", "materials.json"));
 validate("https://gridworks.example/schema/domain-catalog.schema.json", domainCatalog, "domain catalog");
 validate("https://gridworks.example/schema/fault-definitions.schema.json", faultDefinitions, "fault definitions");
+validate("https://gridworks.example/schema/material-state.schema.json", { resources: materialDefinitions.resources, recipes: materialDefinitions.recipes, inventories: [] }, "material definitions");
 validate("https://gridworks.example/schema/content-manifest.schema.json", contentManifest, "content manifest");
 assertUnique(domainCatalog.domains.map((domain) => domain.domain_id), "domain catalog");
 assertUnique(contentManifest.bundles.map((bundle) => bundle.bundle_id), "content manifest");

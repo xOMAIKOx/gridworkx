@@ -1,0 +1,14 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/material-command.schema.json",
+  "title":"GRIDWORKS material command payload",
+  "type":"object",
+  "required":["material"],
+  "properties":{"material":{"oneOf":[{"$ref":"#/$defs/transfer"},{"$ref":"#/$defs/production"}]}},
+  "additionalProperties":false,
+  "$defs":{
+    "id":{"type":"string","pattern":"^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$","minLength":3,"maxLength":160},
+    "transfer":{"type":"object","required":["Transfer"],"properties":{"Transfer":{"type":"object","required":["transfer_id","source_inventory_id","destination_inventory_id","resource_id","grade_id","quantity"],"properties":{"transfer_id":{"$ref":"#/$defs/id"},"source_inventory_id":{"$ref":"#/$defs/id"},"destination_inventory_id":{"$ref":"#/$defs/id"},"resource_id":{"$ref":"#/$defs/id"},"grade_id":{"$ref":"#/$defs/id"},"quantity":{"type":"integer","minimum":1}},"additionalProperties":false}},"additionalProperties":false},
+    "production":{"type":"object","required":["ExecuteProduction"],"properties":{"ExecuteProduction":{"type":"object","required":["run_id","recipe_id","facility_id","input_sources","output_inventory_id","requested_runs"],"properties":{"run_id":{"$ref":"#/$defs/id"},"recipe_id":{"$ref":"#/$defs/id"},"facility_id":{"$ref":"#/$defs/id"},"input_sources":{"type":"array","items":{"type":"object","required":["resource_id","store_id"],"properties":{"resource_id":{"$ref":"#/$defs/id"},"store_id":{"$ref":"#/$defs/id"}},"additionalProperties":false},"minItems":1},"output_inventory_id":{"$ref":"#/$defs/id"},"requested_runs":{"type":"integer","minimum":1}},"additionalProperties":false}},"additionalProperties":false}
+  }
+}

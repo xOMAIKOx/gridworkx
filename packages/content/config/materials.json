@@ -1,0 +1,77 @@
+{
+  "config_id": "material.definitions.initial",
+  "rules_version": "rules-0.1.0",
+  "resources": [
+    {
+      "resource_id": "resource.raw_feed",
+      "category": "RawMaterial",
+      "unit": "BaseQuantity",
+      "grade_ids": [
+        "grade.raw.standard"
+      ],
+      "rules_version": "rules-0.1.0"
+    },
+    {
+      "resource_id": "resource.limestone",
+      "category": "RawMaterial",
+      "unit": "BaseQuantity",
+      "grade_ids": [
+        "grade.limestone.standard"
+      ],
+      "rules_version": "rules-0.1.0"
+    },
+    {
+      "resource_id": "resource.finished_aggregate",
+      "category": "FinishedGood",
+      "unit": "BaseQuantity",
+      "grade_ids": [
+        "grade.aggregate.standard"
+      ],
+      "rules_version": "rules-0.1.0"
+    },
+    {
+      "resource_id": "resource.aggregate_waste",
+      "category": "Waste",
+      "unit": "BaseQuantity",
+      "grade_ids": [
+        "grade.waste.standard"
+      ],
+      "rules_version": "rules-0.1.0"
+    }
+  ],
+  "recipes": [
+    {
+      "recipe_id": "recipe.aggregate_crush",
+      "facility_type_ids": [
+        "aggregate_processing_fixture"
+      ],
+      "inputs": [
+        {
+          "resource_id": "resource.raw_feed",
+          "grade_id": "grade.raw.standard",
+          "quantity_per_run": 10
+        },
+        {
+          "resource_id": "resource.limestone",
+          "grade_id": "grade.limestone.standard",
+          "quantity_per_run": 2
+        }
+      ],
+      "outputs": [
+        {
+          "resource_id": "resource.finished_aggregate",
+          "grade_id": "grade.aggregate.standard",
+          "quantity_per_run": 8,
+          "yield_bps": 10000
+        },
+        {
+          "resource_id": "resource.aggregate_waste",
+          "grade_id": "grade.waste.standard",
+          "quantity_per_run": 4,
+          "yield_bps": 10000
+        }
+      ],
+      "rules_version": "rules-0.1.0"
+    }
+  ]
+}

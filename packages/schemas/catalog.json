@@ -11,6 +11,8 @@
     {"schema_id": "schema.facility_graph", "path": "facility-graph.schema.json", "version": "0.1.0"},
     {"schema_id": "schema.failure_state", "path": "failure-state.schema.json", "version": "0.1.0"},
     {"schema_id": "schema.failure_command", "path": "failure-command.schema.json", "version": "0.1.0"},
-    {"schema_id": "schema.fault_definitions", "path": "fault-definitions.schema.json", "version": "0.1.0"}
+    {"schema_id": "schema.fault_definitions", "path": "fault-definitions.schema.json", "version": "0.1.0"},
+    {"schema_id": "schema.material_state", "path": "material-state.schema.json", "version": "0.1.0"},
+    {"schema_id": "schema.material_command", "path": "material-command.schema.json", "version": "0.1.0"}
   ]
 }
