@@ -134,8 +134,6 @@ pub enum ProofPayload {
     Failure(FailureCommand),
     #[serde(rename = "material")]
     Material(MaterialCommand),
-    #[serde(rename = "ledger")]
-    Ledger(LedgerCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,8 +242,6 @@ pub struct SimulationState {
     pub failure: FailureState,
     #[serde(default)]
     pub material: MaterialState,
-    #[serde(default)]
-    pub ledger: LedgerState,
 }
 
 impl SimulationState {
@@ -265,7 +261,6 @@ impl SimulationState {
             facilities: Vec::new(),
             failure: FailureState::default(),
             material: MaterialState::default(),
-            ledger: LedgerState::default(),
         };
         state.validate()?;
         Ok(state)
@@ -317,7 +312,6 @@ impl SimulationState {
         self.material
             .validate(&self.facilities)
             .map_err(KernelError::Material)?;
-        self.ledger.validate().map_err(KernelError::Ledger)?;
         for (index, current) in self.executed_commands.iter().enumerate() {
             if current.command_id.is_empty() || current.idempotency_key.is_empty() {
                 return Err(KernelError::InvalidState(
@@ -348,7 +342,6 @@ impl SimulationState {
             .sort_by(|left, right| left.facility_id.cmp(&right.facility_id));
         canonical.failure = self.failure.canonicalized();
         canonical.material = self.material.canonicalized();
-        canonical.ledger = self.ledger.canonicalized();
         canonical
     }
 
@@ -448,8 +441,6 @@ pub enum KernelEvent {
     Failure(FailureEvent),
     #[serde(rename = "material")]
     Material(MaterialEvent),
-    #[serde(rename = "ledger")]
-    Ledger(LedgerEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -562,19 +553,6 @@ pub fn execute(state: &mut SimulationState, command: &Command) -> Result<Transit
         (material_type, ProofPayload::Material(_)) if material_type.starts_with("material.") => {
             return Err(KernelError::MalformedCommand(
                 "material payload does not match command type".to_owned(),
-            ))
-        }
-        (ledger_type, ProofPayload::Ledger(ledger_command))
-            if ledger_type.starts_with("ledger.") =>
-        {
-            next.ledger
-                .post(command.effective_time_ms, ledger_command)
-                .map(KernelEvent::Ledger)
-                .map_err(KernelError::Ledger)?
-        }
-        (ledger_type, ProofPayload::Ledger(_)) if ledger_type.starts_with("ledger.") => {
-            return Err(KernelError::MalformedCommand(
-                "ledger payload does not match command type".to_owned(),
             ))
         }
         (unsupported, _) => {
@@ -896,56 +874,43 @@ mod tests {
     }
 
     #[test]
-    fn ledger_command_uses_kernel_snapshot_and_digest_boundary() {
-        let mut state = SimulationState::new(41).unwrap();
-        state.ledger = synthetic_ledger_fixture();
-        let command = Command {
-            command_id: "command.ledger.grant".to_owned(),
-            command_type: "ledger.post".to_owned(),
-            schema_version: SCHEMA_VERSION.to_owned(),
-            rules_version: RULES_VERSION.to_owned(),
-            effective_time_ms: 0,
-            idempotency_key: "idempotency.ledger.grant".to_owned(),
-            payload: ProofPayload::Ledger(LedgerCommand::Post {
-                transaction_id: "transaction.synthetic.grant".to_owned(),
-                transaction_type: "ledger.synthetic_grant".to_owned(),
-                idempotency_key: "ledger.synthetic.grant".to_owned(),
-                source_ref: "event.synthetic.grant".to_owned(),
-                currency: "CRD".to_owned(),
-                lines: vec![
-                    JournalLineInput {
-                        line_id: "line.grant.debit".to_owned(),
-                        sequence: 1,
-                        account_id: "account.system.clearing".to_owned(),
-                        side: LineSide::Debit,
-                        amount_minor: 1_000,
-                    },
-                    JournalLineInput {
-                        line_id: "line.grant.credit".to_owned(),
-                        sequence: 2,
-                        account_id: "account.synthetic.wallet".to_owned(),
-                        side: LineSide::Credit,
-                        amount_minor: 1_000,
-                    },
-                ],
-            }),
-        };
-        let transition = execute(&mut state, &command).unwrap();
-        assert!(matches!(
-            transition.events[0],
-            KernelEvent::Ledger(LedgerEvent::Posted {
-                debits_minor: 1_000,
-                ..
-            })
-        ));
+    fn ledger_storage_is_independent_of_simulation_snapshot_digest() {
+        let state = SimulationState::new(41).unwrap();
+        let before = state.digest().unwrap();
+        let mut ledger = synthetic_ledger_fixture();
+        ledger
+            .post(
+                0,
+                &LedgerCommand::Post {
+                    transaction_id: "transaction.synthetic.grant".to_owned(),
+                    transaction_type: "ledger.synthetic_grant".to_owned(),
+                    idempotency_key: "ledger.synthetic.grant".to_owned(),
+                    source_ref: "event.synthetic.grant".to_owned(),
+                    currency: "CRD".to_owned(),
+                    lines: vec![
+                        JournalLineInput {
+                            line_id: "line.grant.debit".to_owned(),
+                            sequence: 1,
+                            account_id: "account.system.clearing".to_owned(),
+                            side: LineSide::Debit,
+                            amount_minor: 1_000,
+                        },
+                        JournalLineInput {
+                            line_id: "line.grant.credit".to_owned(),
+                            sequence: 2,
+                            account_id: "account.synthetic.wallet".to_owned(),
+                            side: LineSide::Credit,
+                            amount_minor: 1_000,
+                        },
+                    ],
+                },
+            )
+            .unwrap();
+        assert_eq!(state.digest().unwrap(), before);
         assert_eq!(
-            state
-                .ledger
-                .balance_minor("account.synthetic.wallet", "CRD"),
+            ledger.balance_minor("account.synthetic.wallet", "CRD"),
             Ok(-1_000)
         );
-        let restored = SimulationState::from_json(&state.to_json().unwrap()).unwrap();
-        assert_eq!(restored.digest(), state.digest());
     }
 
     #[test]

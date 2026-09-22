@@ -18,6 +18,7 @@ pub enum LedgerError {
     MixedCurrency,
     ImmutableTransaction(String),
     UnknownReversal(String),
+    AlreadyReversed(String),
 }
 impl Display for LedgerError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -158,6 +159,8 @@ impl LedgerState {
         }
         let mut txs = BTreeSet::new();
         let mut keys = BTreeSet::new();
+        let mut line_ids = BTreeSet::new();
+        let mut reversal_targets = BTreeSet::new();
         for tx in &self.transactions {
             self.validate_transaction(tx)?;
             if !txs.insert(&tx.transaction_id) {
@@ -167,6 +170,24 @@ impl LedgerState {
                 return Err(LedgerError::DuplicateIdempotency(
                     tx.idempotency_key.clone(),
                 ));
+            }
+            for line in &tx.lines {
+                if line.transaction_id != tx.transaction_id || !line_ids.insert(&line.line_id) {
+                    return Err(LedgerError::ImmutableTransaction(tx.transaction_id.clone()));
+                }
+            }
+            if let Some(original_id) = &tx.reversal_of {
+                if original_id == &tx.transaction_id || !reversal_targets.insert(original_id) {
+                    return Err(LedgerError::AlreadyReversed(original_id.clone()));
+                }
+                let original = self
+                    .transactions
+                    .iter()
+                    .find(|candidate| &candidate.transaction_id == original_id)
+                    .ok_or_else(|| LedgerError::UnknownReversal(original_id.clone()))?;
+                if original.reversal_of.is_some() {
+                    return Err(LedgerError::ImmutableTransaction(original_id.clone()));
+                }
             }
         }
         Ok(())
@@ -299,6 +320,13 @@ impl LedgerState {
                         idempotency_key: idempotency_key.clone(),
                         transaction_id: existing.transaction_id.clone(),
                     });
+                }
+                if self
+                    .transactions
+                    .iter()
+                    .any(|tx| tx.reversal_of.as_deref() == Some(transaction_id.as_str()))
+                {
+                    return Err(LedgerError::AlreadyReversed(transaction_id.clone()));
                 }
                 let original = self
                     .transactions
@@ -524,5 +552,18 @@ mod tests {
             ledger.balance_minor("account.synthetic.wallet", "CRD"),
             Ok(0)
         );
+        let before_second_reversal = ledger.clone();
+        assert_eq!(
+            ledger.post(
+                2,
+                &LedgerCommand::Reverse {
+                    transaction_id: "tx.grant".to_owned(),
+                    reversal_id: "tx.reversal.second".to_owned(),
+                    idempotency_key: "key.reversal.second".to_owned(),
+                },
+            ),
+            Err(LedgerError::AlreadyReversed("tx.grant".to_owned()))
+        );
+        assert_eq!(ledger, before_second_reversal);
     }
 }

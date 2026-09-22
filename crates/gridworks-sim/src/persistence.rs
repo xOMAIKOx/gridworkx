@@ -92,6 +92,15 @@ mod tests {
     }
 
     #[test]
+    fn identical_state_digests_are_valid_for_distinct_snapshot_ids() {
+        let state = SimulationState::new(41).unwrap();
+        let first = SnapshotRecord::from_state("snapshot.first", &state, None).unwrap();
+        let second = SnapshotRecord::from_state("snapshot.second", &state, None).unwrap();
+        assert_eq!(first.state_digest, second.state_digest);
+        assert_ne!(first.snapshot_id, second.snapshot_id);
+    }
+
+    #[test]
     fn receipt_carries_durable_command_identity_without_state_history() {
         let state = SimulationState::new(41).unwrap();
         let command = Command::adjust_register("command.receipt", "idempotency.receipt", 0, 1);

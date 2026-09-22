@@ -34,3 +34,10 @@ The synthetic proof transfers 1,000 `CRD` minor units from a system clearing acc
 Rust tests cover balanced/multi-line semantics, imbalance, mixed currency, invalid/overflow amounts, duplicate posting, append-only reversal, derived balances, snapshot persistence integrity, kernel ledger command integration and bounded replay history. The migration shape checker verifies required tables, uniqueness, immutability trigger, derived view, transaction wrapping and absence of destructive/provisioning operations.
 
 No live PostgreSQL server was installed or started on ERIS. Any live-PG execution is limited to an already-authorized CI/test context; no host, service, role, database or port mutation occurred.
+
+## R1–R4 remediation evidence
+
+- Ledger state is no longer owned by `SimulationState`; ledger posting/reversal remains a separate Rust domain operation and cannot change simulation snapshot JSON or digest. The simulation schema no longer contains a ledger field.
+- PostgreSQL journal transactions use a draft-to-post transition with a deferred balance constraint trigger requiring at least two lines, positive debit total and exact debit/credit equality at commit. Line currency must match both transaction and account currency.
+- Reversal integrity is enforced in Rust and PostgreSQL: one original can have at most one reversal, persisted line IDs/transaction IDs are consistent, reversal targets exist and are not themselves reversals, and a second reversal is rejected without mutation.
+- Snapshot digest lookup is indexed but non-unique. Distinct snapshot IDs/owners may persist identical canonical state digests; snapshot ID remains the durable identity.

@@ -14,9 +14,10 @@ CREATE TABLE IF NOT EXISTS gridworks.simulation_snapshots (
     payload jsonb NOT NULL,
     previous_snapshot_id text REFERENCES gridworks.simulation_snapshots(snapshot_id),
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    accepted_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (state_digest, schema_version, rules_version)
+    accepted_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS simulation_snapshots_digest_idx
+    ON gridworks.simulation_snapshots (state_digest, schema_version, rules_version);
 
 CREATE TABLE IF NOT EXISTS gridworks.command_receipts (
     command_id text PRIMARY KEY,
@@ -47,8 +48,12 @@ CREATE TABLE IF NOT EXISTS gridworks.journal_transactions (
     source_ref text NOT NULL,
     currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
     reversal_of text REFERENCES gridworks.journal_transactions(transaction_id),
-    posted_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+    status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'posted')),
+    posted_at timestamptz
 );
+CREATE UNIQUE INDEX IF NOT EXISTS journal_transactions_one_reversal_idx
+    ON gridworks.journal_transactions (reversal_of)
+    WHERE reversal_of IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS gridworks.journal_lines (
     line_id text PRIMARY KEY,
@@ -65,9 +70,52 @@ CREATE TABLE IF NOT EXISTS gridworks.journal_lines (
 CREATE OR REPLACE FUNCTION gridworks.prevent_posted_journal_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+    IF TG_TABLE_NAME = 'journal_transactions'
+       AND TG_OP = 'UPDATE'
+       AND OLD.status = 'draft'
+       AND NEW.status = 'posted' THEN
+        NEW.posted_at := COALESCE(NEW.posted_at, CURRENT_TIMESTAMP);
+        RETURN NEW;
+    END IF;
     RAISE EXCEPTION 'journal records are immutable; use a reversal transaction';
 END
 $$;
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_direct_posted_transaction()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.status <> 'draft' THEN
+        RAISE EXCEPTION 'journal transactions must be posted through the draft-to-post transition';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS journal_transactions_draft_guard ON gridworks.journal_transactions;
+CREATE TRIGGER journal_transactions_draft_guard
+    BEFORE INSERT ON gridworks.journal_transactions
+    FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_direct_posted_transaction();
+
+CREATE OR REPLACE FUNCTION gridworks.validate_posted_journal_balance()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE line_count bigint; debit_total bigint; credit_total bigint;
+BEGIN
+    SELECT count(*), COALESCE(sum(CASE WHEN side = 'Debit' THEN amount_minor ELSE 0 END), 0), COALESCE(sum(CASE WHEN side = 'Credit' THEN amount_minor ELSE 0 END), 0)
+      INTO line_count, debit_total, credit_total
+      FROM gridworks.journal_lines WHERE transaction_id = NEW.transaction_id;
+    IF line_count < 2 OR debit_total <= 0 OR debit_total <> credit_total THEN
+        RAISE EXCEPTION 'posted journal transaction is not balanced';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS journal_transactions_balance_guard ON gridworks.journal_transactions;
+CREATE CONSTRAINT TRIGGER journal_transactions_balance_guard
+    AFTER UPDATE OF status ON gridworks.journal_transactions
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW WHEN (NEW.status = 'posted')
+    EXECUTE FUNCTION gridworks.validate_posted_journal_balance();
 
 DROP TRIGGER IF EXISTS journal_transactions_immutable ON gridworks.journal_transactions;
 CREATE TRIGGER journal_transactions_immutable
@@ -81,10 +129,11 @@ CREATE TRIGGER journal_lines_immutable
 
 CREATE OR REPLACE FUNCTION gridworks.validate_journal_line_currency()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE tx_currency char(3);
+DECLARE tx_currency char(3); account_currency char(3);
 BEGIN
     SELECT currency INTO tx_currency FROM gridworks.journal_transactions WHERE transaction_id = NEW.transaction_id;
-    IF tx_currency IS NULL OR NEW.currency <> tx_currency THEN
+    SELECT currency INTO account_currency FROM gridworks.ledger_accounts WHERE account_id = NEW.account_id;
+    IF tx_currency IS NULL OR account_currency IS NULL OR NEW.currency <> tx_currency OR NEW.currency <> account_currency THEN
         RAISE EXCEPTION 'journal line currency does not match transaction currency';
     END IF;
     RETURN NEW;
@@ -102,6 +151,8 @@ SELECT
     currency,
     COALESCE(SUM(CASE WHEN side = 'Debit' THEN amount_minor ELSE -amount_minor END), 0)::bigint AS balance_minor
 FROM gridworks.journal_lines
+JOIN gridworks.journal_transactions USING (transaction_id)
+WHERE journal_transactions.status = 'posted'
 GROUP BY account_id, currency;
 
 COMMIT;
