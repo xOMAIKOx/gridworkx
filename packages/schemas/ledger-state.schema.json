@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/ledger-state.schema.json",
+  "title": "GRIDWORKS immutable ledger state",
+  "type": "object",
+  "required": ["accounts", "transactions"],
+  "properties": {
+    "accounts": {"type":"array","items":{"$ref":"#/$defs/account"}},
+    "transactions": {"type":"array","items":{"$ref":"#/$defs/transaction"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {"type":"string","minLength":1},
+    "currency": {"type":"string","pattern":"^[A-Z]{3}$"},
+    "account": {"type":"object","required":["account_id","owner_ref","account_class","currency","active"],"properties":{"account_id":{"$ref":"#/$defs/id"},"owner_ref":{"$ref":"#/$defs/id"},"account_class":{"enum":["Asset","Liability","Equity","Revenue","Expense","ClearingSystem"]},"currency":{"$ref":"#/$defs/currency"},"active":{"type":"boolean"}},"additionalProperties":false},
+    "line": {"type":"object","required":["line_id","transaction_id","sequence","account_id","currency","side","amount_minor"],"properties":{"line_id":{"$ref":"#/$defs/id"},"transaction_id":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"account_id":{"$ref":"#/$defs/id"},"currency":{"$ref":"#/$defs/currency"},"side":{"enum":["Debit","Credit"]},"amount_minor":{"type":"integer","minimum":1}},"additionalProperties":false},
+    "transaction": {"type":"object","required":["transaction_id","transaction_type","effective_time_ms","idempotency_key","source_ref","currency","reversal_of","lines"],"properties":{"transaction_id":{"$ref":"#/$defs/id"},"transaction_type":{"$ref":"#/$defs/id"},"effective_time_ms":{"type":"integer","minimum":0},"idempotency_key":{"$ref":"#/$defs/id"},"source_ref":{"$ref":"#/$defs/id"},"currency":{"$ref":"#/$defs/currency"},"reversal_of":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]},"lines":{"type":"array","minItems":2,"items":{"$ref":"#/$defs/line"}}},"additionalProperties":false}
+  }
+}

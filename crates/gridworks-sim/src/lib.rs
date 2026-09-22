@@ -3,7 +3,9 @@ use sha2::{Digest, Sha256};
 
 pub mod failure;
 pub mod graph;
+pub mod ledger;
 pub mod material;
+pub mod persistence;
 
 pub use failure::{
     aggregate_fault_definitions, ComponentConditionState, Diagnosis, DiagnosisStatus, EvidenceItem,
@@ -15,11 +17,16 @@ pub use graph::{
     DependencyType, Facility, FacilityContext, FacilityEvaluation, GraphError, OperationalState,
     System, SystemEvaluation, BASIS_POINTS_PER_WHOLE,
 };
+pub use ledger::{
+    synthetic_ledger_fixture, AccountClass, JournalLine, JournalLineInput, JournalTransaction,
+    LedgerAccount, LedgerCommand, LedgerError, LedgerEvent, LedgerState, LineSide,
+};
 pub use material::{
     aggregate_material_fixture, InputSource, InventoryStore, MaterialCommand, MaterialError,
     MaterialEvent, MaterialLimit, MaterialLot, MaterialState, QuantityUnit, RecipeDefinition,
     RecipeInput, RecipeOutput, ResourceCategory, ResourceDefinition, QUANTITY_SCALE,
 };
+pub use persistence::{CommandReceipt, ReceiptStatus, SnapshotRecord};
 
 pub const SCHEMA_VERSION: &str = "schema-0.1.0";
 pub const RULES_VERSION: &str = "rules-0.1.0";
@@ -54,6 +61,7 @@ pub enum KernelError {
     Deserialization(String),
     Failure(FailureError),
     Material(MaterialError),
+    Ledger(LedgerError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +134,8 @@ pub enum ProofPayload {
     Failure(FailureCommand),
     #[serde(rename = "material")]
     Material(MaterialCommand),
+    #[serde(rename = "ledger")]
+    Ledger(LedgerCommand),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +244,8 @@ pub struct SimulationState {
     pub failure: FailureState,
     #[serde(default)]
     pub material: MaterialState,
+    #[serde(default)]
+    pub ledger: LedgerState,
 }
 
 impl SimulationState {
@@ -253,6 +265,7 @@ impl SimulationState {
             facilities: Vec::new(),
             failure: FailureState::default(),
             material: MaterialState::default(),
+            ledger: LedgerState::default(),
         };
         state.validate()?;
         Ok(state)
@@ -304,6 +317,7 @@ impl SimulationState {
         self.material
             .validate(&self.facilities)
             .map_err(KernelError::Material)?;
+        self.ledger.validate().map_err(KernelError::Ledger)?;
         for (index, current) in self.executed_commands.iter().enumerate() {
             if current.command_id.is_empty() || current.idempotency_key.is_empty() {
                 return Err(KernelError::InvalidState(
@@ -334,6 +348,7 @@ impl SimulationState {
             .sort_by(|left, right| left.facility_id.cmp(&right.facility_id));
         canonical.failure = self.failure.canonicalized();
         canonical.material = self.material.canonicalized();
+        canonical.ledger = self.ledger.canonicalized();
         canonical
     }
 
@@ -433,6 +448,8 @@ pub enum KernelEvent {
     Failure(FailureEvent),
     #[serde(rename = "material")]
     Material(MaterialEvent),
+    #[serde(rename = "ledger")]
+    Ledger(LedgerEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -547,6 +564,19 @@ pub fn execute(state: &mut SimulationState, command: &Command) -> Result<Transit
                 "material payload does not match command type".to_owned(),
             ))
         }
+        (ledger_type, ProofPayload::Ledger(ledger_command))
+            if ledger_type.starts_with("ledger.") =>
+        {
+            next.ledger
+                .post(command.effective_time_ms, ledger_command)
+                .map(KernelEvent::Ledger)
+                .map_err(KernelError::Ledger)?
+        }
+        (ledger_type, ProofPayload::Ledger(_)) if ledger_type.starts_with("ledger.") => {
+            return Err(KernelError::MalformedCommand(
+                "ledger payload does not match command type".to_owned(),
+            ))
+        }
         (unsupported, _) => {
             return Err(KernelError::UnsupportedCommandType(unsupported.to_owned()))
         }
@@ -555,6 +585,11 @@ pub fn execute(state: &mut SimulationState, command: &Command) -> Result<Transit
         command_id: command.command_id.clone(),
         idempotency_key: command.idempotency_key.clone(),
     });
+    const REPLAY_RECEIPT_WINDOW: usize = 1024;
+    if next.executed_commands.len() > REPLAY_RECEIPT_WINDOW {
+        let excess = next.executed_commands.len() - REPLAY_RECEIPT_WINDOW;
+        next.executed_commands.drain(..excess);
+    }
     next.validate()?;
     let resulting_digest = next.digest()?;
     *state = next.clone();
@@ -857,6 +892,77 @@ mod tests {
                 .quantity("resource.finished_aggregate", "grade.aggregate.standard")
                 .unwrap(),
             8
+        );
+    }
+
+    #[test]
+    fn ledger_command_uses_kernel_snapshot_and_digest_boundary() {
+        let mut state = SimulationState::new(41).unwrap();
+        state.ledger = synthetic_ledger_fixture();
+        let command = Command {
+            command_id: "command.ledger.grant".to_owned(),
+            command_type: "ledger.post".to_owned(),
+            schema_version: SCHEMA_VERSION.to_owned(),
+            rules_version: RULES_VERSION.to_owned(),
+            effective_time_ms: 0,
+            idempotency_key: "idempotency.ledger.grant".to_owned(),
+            payload: ProofPayload::Ledger(LedgerCommand::Post {
+                transaction_id: "transaction.synthetic.grant".to_owned(),
+                transaction_type: "ledger.synthetic_grant".to_owned(),
+                idempotency_key: "ledger.synthetic.grant".to_owned(),
+                source_ref: "event.synthetic.grant".to_owned(),
+                currency: "CRD".to_owned(),
+                lines: vec![
+                    JournalLineInput {
+                        line_id: "line.grant.debit".to_owned(),
+                        sequence: 1,
+                        account_id: "account.system.clearing".to_owned(),
+                        side: LineSide::Debit,
+                        amount_minor: 1_000,
+                    },
+                    JournalLineInput {
+                        line_id: "line.grant.credit".to_owned(),
+                        sequence: 2,
+                        account_id: "account.synthetic.wallet".to_owned(),
+                        side: LineSide::Credit,
+                        amount_minor: 1_000,
+                    },
+                ],
+            }),
+        };
+        let transition = execute(&mut state, &command).unwrap();
+        assert!(matches!(
+            transition.events[0],
+            KernelEvent::Ledger(LedgerEvent::Posted {
+                debits_minor: 1_000,
+                ..
+            })
+        ));
+        assert_eq!(
+            state
+                .ledger
+                .balance_minor("account.synthetic.wallet", "CRD"),
+            Ok(-1_000)
+        );
+        let restored = SimulationState::from_json(&state.to_json().unwrap()).unwrap();
+        assert_eq!(restored.digest(), state.digest());
+    }
+
+    #[test]
+    fn executed_command_replay_window_is_bounded() {
+        let mut state = SimulationState::new(41).unwrap();
+        for index in 0..1_100u32 {
+            let id = format!("command.window.{index}");
+            let key = format!("idempotency.window.{index}");
+            execute(&mut state, &Command::adjust_register(id, key, 0, 1)).unwrap();
+        }
+        assert_eq!(state.executed_commands.len(), 1_024);
+        assert_eq!(
+            state
+                .executed_commands
+                .first()
+                .map(|command| command.command_id.as_str()),
+            Some("command.window.76")
         );
     }
 

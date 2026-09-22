@@ -12,6 +12,7 @@ REQUIRED_PATHS = [
     "packages/localization/catalogue.json",
     "packages/visual-assets/manifests/semantic-assets.json",
     "db/migrations/0001_wp001_foundation.sql",
+    "db/migrations/0002_wp006_persistence_ledger.sql",
     "db/seeds/0001_domain_registry.sql",
     "ops/config/gridworks.env.example",
     "ops/systemd/gridworks-api.service",
