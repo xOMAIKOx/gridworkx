@@ -45,3 +45,9 @@ No live PostgreSQL server was installed or started on ERIS. Any live-PG executio
 ## R5–R6 SQL lifecycle evidence
 
 The posted lifecycle is now closed at both mutation points: a deferred balance check validates a draft-to-post transition, a posting identity guard permits only `status`/`posted_at` lifecycle changes, and a posted-line INSERT guard rejects new lines after posting. Existing UPDATE/DELETE journal immutability remains active. Structural validation asserts all three lifecycle guards and the identity-freeze contract.
+
+## R7–R8 lifecycle concurrency/audit-time evidence
+
+Posted-line insertion now acquires a `FOR SHARE` lock on the parent transaction row before reading status. The draft→posted update takes the conflicting row lock, so either line insertion commits first and posting observes it, or posting commits first and a later line insert observes `posted` and rejects. The design uses PostgreSQL row locking, not a process-local mutex.
+
+Draft inserts require `posted_at IS NULL`; draft→posted rejects caller-supplied `posted_at` and assigns `CURRENT_TIMESTAMP` inside the trigger. `posted_at` is therefore trigger-owned lifecycle metadata.

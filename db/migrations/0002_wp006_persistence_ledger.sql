@@ -83,7 +83,10 @@ BEGIN
            OR NEW.reversal_of IS DISTINCT FROM OLD.reversal_of THEN
             RAISE EXCEPTION 'draft-to-posted transition cannot change accounting identity fields';
         END IF;
-        NEW.posted_at := COALESCE(NEW.posted_at, CURRENT_TIMESTAMP);
+        IF NEW.posted_at IS NOT NULL THEN
+            RAISE EXCEPTION 'posted_at is trigger-owned';
+        END IF;
+        NEW.posted_at := CURRENT_TIMESTAMP;
         RETURN NEW;
     END IF;
     RAISE EXCEPTION 'journal records are immutable; use a reversal transaction';
@@ -93,8 +96,8 @@ $$;
 CREATE OR REPLACE FUNCTION gridworks.prevent_direct_posted_transaction()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.status <> 'draft' THEN
-        RAISE EXCEPTION 'journal transactions must be posted through the draft-to-post transition';
+    IF NEW.status <> 'draft' OR NEW.posted_at IS NOT NULL THEN
+        RAISE EXCEPTION 'draft transactions require trigger-owned null posted_at';
     END IF;
     RETURN NEW;
 END
@@ -140,7 +143,7 @@ CREATE OR REPLACE FUNCTION gridworks.prevent_posted_journal_line_insert()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE tx_status text;
 BEGIN
-    SELECT status INTO tx_status FROM gridworks.journal_transactions WHERE transaction_id = NEW.transaction_id;
+    SELECT status INTO tx_status FROM gridworks.journal_transactions WHERE transaction_id = NEW.transaction_id FOR SHARE;
     IF tx_status IS NULL THEN
         RAISE EXCEPTION 'journal transaction does not exist';
     END IF;
