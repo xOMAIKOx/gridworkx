@@ -16,7 +16,7 @@ No Apple/Google/OIDC validation, redirects, provider credentials or live integra
 
 ## Handles and public/private boundaries
 
-Handles use NFKC normalization, lower-casing and a deterministic pinned strategy label `unicode-15.1-skeleton-v1`, with explicit Latin/Cyrillic confusable mapping, invisible/control rejection, reserved skeletons and canonical/skeleton uniqueness. Display names are mutable, non-unique and separately validated.
+Handles use NFKC normalization, Unicode case folding and the deterministic pinned GRIDWORKS strategy label `gridworks-unicode-15.1-confusable-subset-v1`, with the supported explicit Latin/Cyrillic confusable subset, invisible/control rejection, reserved skeletons and canonical/skeleton uniqueness. This is a versioned GRIDWORKS subset and does not claim full UTS #39 coverage. Display names are mutable, non-unique and separately validated.
 
 `PublicPlayerProfile` intentionally excludes account status, session verifier, provider identity, recovery and security metadata. Locale, IANA timezone, visibility, DM policy, discoverability and notification preference foundations are represented without implementing messaging or delivery.
 
