@@ -3,7 +3,7 @@
 **Repository:** `xOMAIKOx/gridworkx`
 **Branch:** `engineering/wp-007-guest-identity-profile-rerun`
 **Exact required parent:** `8306ac89cc25c8d7e193e1b93f51d3fe9c12ecf9`
-**Exact HEAD:** `bd12e6fe7c381de3ad42340bef1ab676929672ae`
+**Exact HEAD:** `522a007dbb706a2817d65a0eaf7e37b7f2723595`
 **Draft PR:** pending creation from this branch
 **Work order:** `docs/work-orders/WP-007_GUEST_FIRST_IDENTITY_AND_PLAYER_PROFILE.md`
 
