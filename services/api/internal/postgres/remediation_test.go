@@ -1,10 +1,10 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
@@ -28,15 +28,6 @@ func (s *stepEntropy) Read(p []byte) (int, error) {
 		p[i] = byte(s.call)
 	}
 	return len(p), nil
-}
-
-func repeatedHex(b byte, n int) string {
-	return strings.Repeat(strings.ToLower(regexp.QuoteMeta(""))+string([]byte{}), 0) + strings.Repeat(hexByte(b), n)
-}
-
-func hexByte(b byte) string {
-	const digits = "0123456789abcdef"
-	return string([]byte{digits[b>>4], digits[b&0x0f]})
 }
 
 func newMockRepository(t *testing.T, entropy Entropy) (*Repository, sqlmock.Sqlmock, func()) {
@@ -303,4 +294,3 @@ func jsonMarshal(v any) (string, error) {
 	return string(b), err
 }
 
-var _ = bytes.Compare
