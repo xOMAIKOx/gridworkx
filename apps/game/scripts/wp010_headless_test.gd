@@ -17,7 +17,11 @@ func _ready() -> void:
 
 func _run() -> void:
 	if not ClassDB.class_exists("GridworksSimBridge"):
-		fail("GDExtension class is absent from ClassDB")
+		var candidates: Array[String] = []
+		for class_name in ClassDB.get_class_list():
+			if "grid" in class_name.to_lower():
+				candidates.append(class_name)
+		fail("GDExtension class is absent from ClassDB: " + ",".join(candidates))
 	var bridge = ClassDB.instantiate("GridworksSimBridge")
 	if bridge == null:
 		fail("GDExtension class was not registered")
