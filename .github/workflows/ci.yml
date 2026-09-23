@@ -65,4 +65,4 @@ jobs:
           RUST_BACKTRACE: "1"
         run: "$HOME/.local/bin/godot --headless --verbose --path apps/game --quit --audio-driver Dummy"
       - name: Run WP-010 deterministic Godot parity test
-        run: "$HOME/.local/bin/godot --headless --path apps/game --scene res://scenes/wp010_test.tscn --audio-driver Dummy"
+        run: "timeout 30s $HOME/.local/bin/godot --headless --path apps/game --scene res://scenes/wp010_test.tscn --audio-driver Dummy"
