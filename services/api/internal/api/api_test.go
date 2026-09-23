@@ -180,11 +180,13 @@ func TestRequestIDReflectionUsesNarrowSafeAlphabet(t *testing.T) {
 		t.Fatalf("safe request ID was not preserved: %q", got)
 	}
 
-	r = httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	r.Header.Set("X-Request-ID", "bad=value\nfield")
-	w = httptest.NewRecorder()
-	h.ServeHTTP(w, r)
-	if got := w.Header().Get("X-Request-ID"); got == "bad=value\nfield" || got == "" {
-		t.Fatalf("unsafe request ID was reflected: %q", got)
+	for _, unsafeID := range []string{"bad=value", "bad value", "bad=value\nfield"} {
+		r = httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		r.Header.Set("X-Request-ID", unsafeID)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if got := w.Header().Get("X-Request-ID"); got == unsafeID || got == "" {
+			t.Fatalf("unsafe request ID %q was reflected as %q", unsafeID, got)
+		}
 	}
 }
