@@ -81,3 +81,12 @@ func TestGuestEntropyFailureRollsBackBeforeMutation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGuestReceiptRejectsUnknownAndTrailingFields(t *testing.T) {
+	if _, err := decodeGuestReceiptRef(`{"account_id":"a","player_id":"p","session_id":"s","extra":1}`); err == nil {
+		t.Fatal("unknown receipt field accepted")
+	}
+	if _, err := decodeGuestReceiptRef(`{"account_id":"a","player_id":"p","session_id":"s"}{}`); err == nil {
+		t.Fatal("trailing receipt JSON accepted")
+	}
+}

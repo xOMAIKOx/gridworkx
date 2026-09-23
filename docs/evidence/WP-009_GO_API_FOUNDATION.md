@@ -53,3 +53,8 @@ The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provi
 - OpenAPI is semantically validated by pinned kin-openapi and compared against the Go route inventory; concrete response schemas/examples, error responses and mutation metadata are present.
 - PostgreSQL adapter tests execute actual repository methods through sqlmock, including receipt locking/query order and entropy-failure rollback; live PostgreSQL trigger behavior remains an environment gate.
 - Repository entropy is injectable; production uses `crypto/rand.Reader` and failure tests prove no mutation SQL follows entropy failure.
+
+## R21–R22 remediation evidence
+
+- Domain errors now map explicitly to safe 4xx API envelopes: company name validation/conflict, identity validation/conflict and accepted state/principal failures no longer rely on generic 500 handling.
+- Guest receipt decoding is strict about unknown fields and trailing JSON; replay verifies relational account/player/session/profile consistency and uses the same nullable-normalized profile shape as first issuance.

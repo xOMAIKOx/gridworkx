@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/xOMAIKOx/gridworkx/services/internal/company"
 	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
 )
 
@@ -542,6 +543,34 @@ func validateProfilePatch(p ProfilePatch) error {
 func mapError(err error) error {
 	if err == nil {
 		return nil
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return apiErr
+	}
+	var companyErr company.CompanyError
+	if errors.As(err, &companyErr) {
+		switch companyErr {
+		case company.ErrNameInvalid:
+			return &APIError{Status: 422, Code: "company.invalid_name", Message: "company name is invalid"}
+		case company.ErrNameReserved, company.ErrNameUnavailable, company.ErrIdempotencyConflict, company.ErrOwnershipConflict, company.ErrGroupConflict:
+			return &APIError{Status: 409, Code: "mutation.conflict", Message: "mutation conflicts with existing state"}
+		case company.ErrOwnerInvalid, company.ErrInvalidShare, company.ErrOwnershipTotal:
+			return &APIError{Status: 422, Code: "mutation.invalid_state", Message: "mutation is invalid"}
+		case company.ErrCompanyNotFound, company.ErrGroupNotFound:
+			return ErrNotFound
+		}
+	}
+	var identityErr identity.IdentityError
+	if errors.As(err, &identityErr) {
+		switch identityErr {
+		case identity.ErrInvalidSession, identity.ErrSessionRevoked:
+			return ErrUnauthorized
+		case identity.ErrIdempotencyConflict, identity.ErrExternalIdentityConflict:
+			return ErrConflict
+		default:
+			return &APIError{Status: 422, Code: "identity.invalid", Message: "identity mutation is invalid"}
+		}
 	}
 	return err
 }

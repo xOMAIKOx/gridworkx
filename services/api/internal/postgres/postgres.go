@@ -96,6 +96,23 @@ type guestReceiptRef struct {
 	SessionID string `json:"session_id"`
 }
 
+func decodeGuestReceiptRef(value string) (guestReceiptRef, error) {
+	var ref guestReceiptRef
+	decoder := json.NewDecoder(bytes.NewReader([]byte(value)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&ref); err != nil {
+		return guestReceiptRef{}, err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return guestReceiptRef{}, errors.New("trailing guest receipt data")
+	}
+	if ref.AccountID == "" || ref.PlayerID == "" || ref.SessionID == "" || strings.ContainsRune(value, 0) {
+		return guestReceiptRef{}, errors.New("invalid guest receipt")
+	}
+	return ref, nil
+}
+
 func lockIdempotency(ctx context.Context, tx *sql.Tx, namespace, key string) error {
 	_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, namespace+"\x00"+key)
 	return err
@@ -119,15 +136,13 @@ func (r *Repository) IssueGuest(ctx context.Context, key string, now time.Time) 
 		if typ != "identity.guest_issue" || storedDigest != d {
 			return api.GuestResult{}, api.ErrConflict
 		}
-		var ref guestReceiptRef
-		decoder := json.NewDecoder(bytes.NewReader([]byte(resultRef)))
-		decoder.DisallowUnknownFields()
-		if decoder.Decode(&ref) != nil || ref.AccountID == "" || ref.PlayerID == "" || ref.SessionID == "" || strings.ContainsRune(resultRef, 0) {
-			return api.GuestResult{}, errors.New("invalid guest receipt")
+		ref, decodeErr := decodeGuestReceiptRef(resultRef)
+		if decodeErr != nil {
+			return api.GuestResult{}, decodeErr
 		}
 		var exp time.Time
 		var profile []byte
-		if err := tx.QueryRowContext(ctx, `SELECT s.expires_at,json_build_object('player_id',pr.player_id,'handle',pr.handle_display,'display_name',pr.display_name,'avatar_asset_id',pr.avatar_asset_id,'bio',pr.bio,'locale',pr.locale,'timezone',pr.timezone,'visibility',pr.visibility,'dm_policy',pr.dm_policy,'discoverable',pr.discoverable,'notification_preferences',pr.notification_preferences) FROM gridworks.guest_sessions s JOIN gridworks.accounts a ON a.account_id=s.account_id JOIN gridworks.players p ON p.account_id=a.account_id JOIN gridworks.player_profiles pr ON pr.player_id=p.player_id WHERE s.session_id=$2 AND s.account_id=$1 AND p.player_id=$3`, ref.AccountID, ref.SessionID, ref.PlayerID).Scan(&exp, &profile); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT s.expires_at,json_build_object('player_id',pr.player_id,'handle',pr.handle_display,'display_name',pr.display_name,'avatar_asset_id',COALESCE(pr.avatar_asset_id,''),'bio',COALESCE(pr.bio,''),'locale',pr.locale,'timezone',pr.timezone,'visibility',pr.visibility,'dm_policy',pr.dm_policy,'discoverable',pr.discoverable,'notification_preferences',pr.notification_preferences) FROM gridworks.guest_sessions s JOIN gridworks.accounts a ON a.account_id=s.account_id JOIN gridworks.players p ON p.account_id=a.account_id JOIN gridworks.player_profiles pr ON pr.player_id=p.player_id WHERE s.session_id=$2 AND s.account_id=$1 AND p.player_id=$3`, ref.AccountID, ref.SessionID, ref.PlayerID).Scan(&exp, &profile); err != nil {
 			return api.GuestResult{}, mapDB(err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -221,7 +236,7 @@ func (r *Repository) GetMe(ctx context.Context, p api.Principal) (api.MeView, er
 	defer cancel()
 	var v api.MeView
 	var payload []byte
-	err := r.db.QueryRowContext(ctx, `SELECT a.account_id,p.player_id,a.status,json_build_object('player_id',pr.player_id,'handle',pr.handle_display,'display_name',pr.display_name,'avatar_asset_id',pr.avatar_asset_id,'bio',pr.bio,'locale',pr.locale,'timezone',pr.timezone,'visibility',pr.visibility,'dm_policy',pr.dm_policy,'discoverable',pr.discoverable,'notification_preferences',pr.notification_preferences) FROM gridworks.accounts a JOIN gridworks.players p ON p.account_id=a.account_id JOIN gridworks.player_profiles pr ON pr.player_id=p.player_id WHERE a.account_id=$1 AND p.player_id=$2`, p.AccountID, p.PlayerID).Scan(&v.AccountID, &v.PlayerID, &v.Status, &payload)
+	err := r.db.QueryRowContext(ctx, `SELECT a.account_id,p.player_id,a.status,json_build_object('player_id',pr.player_id,'handle',pr.handle_display,'display_name',pr.display_name,'avatar_asset_id',COALESCE(pr.avatar_asset_id,''),'bio',COALESCE(pr.bio,''),'locale',pr.locale,'timezone',pr.timezone,'visibility',pr.visibility,'dm_policy',pr.dm_policy,'discoverable',pr.discoverable,'notification_preferences',pr.notification_preferences) FROM gridworks.accounts a JOIN gridworks.players p ON p.account_id=a.account_id JOIN gridworks.player_profiles pr ON pr.player_id=p.player_id WHERE a.account_id=$1 AND p.player_id=$2`, p.AccountID, p.PlayerID).Scan(&v.AccountID, &v.PlayerID, &v.Status, &payload)
 	if err != nil {
 		return api.MeView{}, mapDB(err)
 	}

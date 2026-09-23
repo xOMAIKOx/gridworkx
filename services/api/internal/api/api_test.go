@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/xOMAIKOx/gridworkx/services/internal/company"
 	"time"
 )
 
@@ -166,5 +168,18 @@ func TestRoutingReturnsStable404And405(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if w.Code != http.StatusMethodNotAllowed || w.Header().Get("Allow") == "" {
 		t.Fatalf("wrong method status/allow=%d/%s", w.Code, w.Header().Get("Allow"))
+	}
+}
+
+func TestDomainErrorsMapToStableAPIErrors(t *testing.T) {
+	mapped := mapError(company.ErrNameInvalid)
+	apiErr, ok := mapped.(*APIError)
+	if !ok || apiErr.Status != 422 {
+		t.Fatalf("name error mapped to %#v", mapped)
+	}
+	mapped = mapError(company.ErrNameReserved)
+	apiErr, ok = mapped.(*APIError)
+	if !ok || apiErr.Status != 409 {
+		t.Fatalf("reserved error mapped to %#v", mapped)
 	}
 }
