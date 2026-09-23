@@ -12,16 +12,16 @@ import (
 )
 
 type scriptedRepo struct {
-	pingFn             func(context.Context) error
-	issueGuestFn       func(context.Context, string, time.Time) (GuestResult, error)
-	authenticateFn     func(context.Context, string, time.Time) (Principal, error)
-	revokeFn           func(context.Context, string, time.Time) error
-	getMeFn            func(context.Context, Principal) (MeView, error)
-	updateProfileFn    func(context.Context, Principal, string, ProfilePatch, time.Time) (MeView, error)
-	publicPlayerFn     func(context.Context, string) (PublicPlayerView, error)
-	createCompanyFn    func(context.Context, Principal, string, CompanyCreateRequest, time.Time) (CreatedEntity, error)
-	publicCompanyFn    func(context.Context, string) (PublicCompanyView, error)
-	createGroupFn      func(context.Context, Principal, string, GroupCreateRequest, time.Time) (CreatedEntity, error)
+	pingFn          func(context.Context) error
+	issueGuestFn    func(context.Context, string, time.Time) (GuestResult, error)
+	authenticateFn  func(context.Context, string, time.Time) (Principal, error)
+	revokeFn        func(context.Context, string, time.Time) error
+	getMeFn         func(context.Context, Principal) (MeView, error)
+	updateProfileFn func(context.Context, Principal, string, ProfilePatch, time.Time) (MeView, error)
+	publicPlayerFn  func(context.Context, string) (PublicPlayerView, error)
+	createCompanyFn func(context.Context, Principal, string, CompanyCreateRequest, time.Time) (CreatedEntity, error)
+	publicCompanyFn func(context.Context, string) (PublicCompanyView, error)
+	createGroupFn   func(context.Context, Principal, string, GroupCreateRequest, time.Time) (CreatedEntity, error)
 }
 
 func (s *scriptedRepo) Ping(ctx context.Context) error {
