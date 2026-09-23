@@ -1,0 +1,9 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/company-public-profile.schema.json",
+  "title":"GRIDWORKS public company profile",
+  "type":"object",
+  "required":["company_id","name","visibility"],
+  "properties":{"company_id":{"type":"string","minLength":1},"name":{"type":"string","minLength":3,"maxLength":80},"logo_asset_id":{"type":"string"},"industry_id":{"type":"string"},"headquarters_region_id":{"type":"string"},"visibility":{"enum":["public","private"]},"description":{"type":"string","maxLength":1000}},
+  "additionalProperties":false
+}

@@ -254,6 +254,16 @@ func (s *InMemoryStore) LinkExternal(idempotencyKey string, sessionToken string,
 	s.accounts[account.AccountID] = account
 	return link, nil
 }
+func (s *InMemoryStore) PlayerExists(playerID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, player := range s.players {
+		if player.PlayerID == playerID {
+			return true
+		}
+	}
+	return false
+}
 func (s *InMemoryStore) RevokeSession(token string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -316,8 +326,12 @@ type NormalizedHandle struct {
 }
 
 func NormalizeHandle(value string) (NormalizedHandle, error) {
+	return NormalizeHandleWithMax(value, 32)
+}
+
+func NormalizeHandleWithMax(value string, maxRunes int) (NormalizedHandle, error) {
 	display := strings.TrimSpace(value)
-	if display == "" || len([]rune(display)) < 3 || len([]rune(display)) > 32 {
+	if display == "" || len([]rune(display)) < 3 || len([]rune(display)) > maxRunes {
 		return NormalizedHandle{}, ErrHandleInvalid
 	}
 	normalized := norm.NFKC.String(display)

@@ -90,6 +90,21 @@
       "schema_id": "schema.identity_public_profile",
       "path": "identity-public-profile.schema.json",
       "version": "0.1.0"
+    },
+    {
+      "schema_id": "schema.company_state",
+      "path": "company-state.schema.json",
+      "version": "0.1.0"
+    },
+    {
+      "schema_id": "schema.company_command",
+      "path": "company-command.schema.json",
+      "version": "0.1.0"
+    },
+    {
+      "schema_id": "schema.company_public_profile",
+      "path": "company-public-profile.schema.json",
+      "version": "0.1.0"
     }
   ]
 }
