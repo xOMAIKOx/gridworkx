@@ -85,10 +85,10 @@ The pure Rust fixture test asserts these committed values and writes ignored par
 
 ## Discovery and runtime proof
 
-`ops/scripts/build-godot-extension.sh` stages the real Linux `.so` and fixture artifacts but does not manufacture Godot project data. Godot 4.7.2 headless editor mode coredumps in its extension-document generation/teardown path after loading this native extension, so CI uses the supported `xvfb-run` virtual-display editor initialization equivalent for the discovery scan, captures the process status, accepts only `0` or the known `134` teardown status, and requires the generated list assertion afterward. CI performs the authorized discovery sequence:
+`ops/scripts/build-godot-extension.sh` stages the real Linux `.so` and fixture artifacts but does not manufacture Godot project data. CI performs the editor discovery scan with a virtual display and Godot 4.7.2 compatibility rendering mode so the process exits cleanly; any non-zero discovery status fails the gate. CI performs the authorized discovery sequence:
 
 ```sh
-timeout 30s xvfb-run -a godot --editor --path apps/game --quit-after 2 --audio-driver Dummy
+timeout 30s xvfb-run -a godot --editor --path apps/game --quit-after 2 --rendering-method gl_compatibility --audio-driver Dummy
 test -f apps/game/.godot/extension_list.cfg
 grep -cFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg
 ```

@@ -66,11 +66,7 @@ jobs:
         env:
           RUST_BACKTRACE: "1"
         run: |
-          set +e
-          timeout 30s xvfb-run -a "$HOME/.local/bin/godot" --editor --path apps/game --quit-after 2 --audio-driver Dummy
-          discovery_status=$?
-          set -e
-          test "$discovery_status" -eq 0 || test "$discovery_status" -eq 134
+          timeout 30s xvfb-run -a "$HOME/.local/bin/godot" --editor --path apps/game --quit-after 2 --rendering-method gl_compatibility --audio-driver Dummy
           test -f apps/game/.godot/extension_list.cfg
           test "$(grep -cFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg)" -eq 1
           test "$(grep -vFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg | sed '/^[[:space:]]*$/d' | wc -l)" -eq 0
