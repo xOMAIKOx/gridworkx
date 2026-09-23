@@ -6,6 +6,7 @@ pub mod graph;
 pub mod ledger;
 pub mod material;
 pub mod persistence;
+pub mod scenario;
 
 pub use failure::{
     aggregate_fault_definitions, ComponentConditionState, Diagnosis, DiagnosisStatus, EvidenceItem,
@@ -27,6 +28,7 @@ pub use material::{
     RecipeInput, RecipeOutput, ResourceCategory, ResourceDefinition, QUANTITY_SCALE,
 };
 pub use persistence::{CommandReceipt, ReceiptStatus, SnapshotRecord};
+pub use scenario::{opening_aggregate_scenario, OPENING_AGGREGATE_SCENARIO_ID};
 
 pub const SCHEMA_VERSION: &str = "schema-0.1.0";
 pub const RULES_VERSION: &str = "rules-0.1.0";
