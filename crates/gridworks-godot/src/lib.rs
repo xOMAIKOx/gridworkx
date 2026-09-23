@@ -72,3 +72,10 @@ fn transition_result(transition: gridworks_sim::Transition) -> Result<Value, GSt
 struct GridworksGodotExtension;
 #[gdextension]
 unsafe impl ExtensionLibrary for GridworksGodotExtension {}
+
+#[derive(GodotClass)]
+#[class(init, base=Node)]
+pub struct GridworksSimBridge {
+    #[base]
+    base: Base<Node>,
+}
