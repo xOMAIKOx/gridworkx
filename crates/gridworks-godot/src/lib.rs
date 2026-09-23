@@ -77,6 +77,9 @@ pub struct GridworksSimBridge {
 }
 
 #[godot_api]
+impl INode for GridworksSimBridge {}
+
+#[godot_api]
 impl GridworksSimBridge {
     #[func]
     fn bridge_metadata(&self) -> GString {
