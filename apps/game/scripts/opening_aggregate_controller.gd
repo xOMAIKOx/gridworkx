@@ -304,19 +304,18 @@ func _material_quantity(state: Dictionary, inventory_id: String, resource_id: St
 func _derive_presentation_state(state: Dictionary, capacity: int, finished: int) -> String:
 	var evidence_count: int = state.get("failure", {}).get("evidence", []).size()
 	var diagnosis_count: int = state.get("failure", {}).get("diagnoses", []).size()
-	if evidence_count == 0:
-		return "opening.intro"
-	if evidence_count < 4:
-		return "opening.inspect"
-	if diagnosis_count == 0:
-		return "opening.diagnose"
-	if capacity == 0:
-		return "opening.intervene"
-	if not production_observed:
-		return "opening.produce"
 	if _completion_predicate(state, capacity, finished):
 		return "opening.complete"
-	return "opening.produce"
+	if capacity > 0:
+		return "opening.produce"
+	if diagnosis_count > 0:
+		return "opening.intervene"
+	var feed_evidence := state.get("failure", {}).get("evidence", []).any(func(item): return item.get("component_id", "") == "component.feed_conveyor")
+	if feed_evidence:
+		return "opening.diagnose"
+	if evidence_count > 0:
+		return "opening.inspect"
+	return "opening.intro"
 
 func _completion_predicate(state: Dictionary, capacity: int, finished: int) -> bool:
 	var feed_resolved := false
