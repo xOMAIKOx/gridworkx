@@ -1,0 +1,53 @@
+{
+  "seed": 1234,
+  "elapsed_ms": 5000,
+  "authoritative_time_ms": 7500,
+  "facility_id": "facility.aggregate_plant_fixture",
+  "commands": [
+    {
+      "command_id": "wp010.adjust-1",
+      "command_type": "proof.adjust_register",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 5000,
+      "idempotency_key": "wp010.adjust-1.v1",
+      "payload": {
+        "adjust_register": {
+          "delta": 7
+        }
+      }
+    },
+    {
+      "command_id": "wp010.pulse-1",
+      "command_type": "proof.seeded_pulse",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 5000,
+      "idempotency_key": "wp010.pulse-1.v1",
+      "payload": {
+        "seeded_pulse": {
+          "options": [
+            -2,
+            5,
+            9
+          ]
+        }
+      }
+    }
+  ],
+  "expected": {
+    "after_elapsed_digest": "732fbdc2e38b55a1b64b5aa9d8a01c2747a20fe9c275c0e4eda537805b0a4c84",
+    "after_command_digest": "5d3dbf4308f1d04ca235d9b82b85c11aadad7f1652966747a4a8eb3274b36161",
+    "final_digest": "bab9c269e56f5ca05c438f958d54784012012eba8ad1c41d9caec6529c900c4c",
+    "event_types": [
+      "time.advanced",
+      "proof.register_adjusted",
+      "proof.seeded_pulse",
+      "time.advanced"
+    ],
+    "command_event_types": [
+      "proof.register_adjusted",
+      "proof.seeded_pulse"
+    ]
+  }
+}

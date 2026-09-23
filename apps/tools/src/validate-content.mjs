@@ -29,6 +29,7 @@ for (const fileName of [
   "company-state.schema.json",
   "company-command.schema.json",
   "company-public-profile.schema.json",
+  "godot-bridge.schema.json",
   "simulation-state.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
@@ -108,6 +109,7 @@ const malformedCompanyCommand = { mutation_type: "company.create", idempotency_k
 const companyCommandCheck = ajv.getSchema("https://gridworks.example/schema/company-command.schema.json");
 if (!companyCommandCheck || companyCommandCheck(malformedCompanyCommand)) throw new Error("company command schema accepted caller-supplied authoritative company ID");
 validate("https://gridworks.example/schema/company-public-profile.schema.json", { company_id: "company.fixture", name: "Fixture Co", visibility: "public" }, "company public profile fixture");
+validate("https://gridworks.example/schema/godot-bridge.schema.json", { ok: true, bridge_version: "godot-rust-bridge-0.1.0", schema_version: "schema-0.1.0", rules_version: "rules-0.1.0", operation: "bridge.metadata", result: {} }, "Godot bridge fixture");
 
 const configFiles = fs.readdirSync(path.join(contentRoot, "config")).filter((fileName) => fileName.endsWith(".json"));
 const semanticKeys = new Set(["config_id", "policy_id", "policy_version", "manifest_id", "principal_id", "system_principal", "layer_id", "mode_id", "asset_id", "catalogue_id"]);

@@ -23,8 +23,8 @@ jobs:
           cache: false
       - name: Select the repository Rust toolchain
         run: |
-          rustup toolchain install 1.75.0 --profile minimal --component rustfmt,clippy
-          rustup default 1.75.0
+          rustup toolchain install 1.80.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.80.0
       - name: Install native validation tools
         run: sudo apt-get update && sudo apt-get install -y gitleaks shellcheck sqlite3
       - name: Install JavaScript dependencies
@@ -45,6 +45,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Ensure Xvfb import support
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
       - name: Install pinned Godot editor
         run: |
           archive=Godot_v4.7.2-stable_linux.x86_64.zip
@@ -54,5 +60,23 @@ jobs:
           unzip -q "$archive"
           mkdir -p "$HOME/.local/bin"
           install -m 0755 Godot_v4.7.2-stable_linux.x86_64 "$HOME/.local/bin/godot"
+      - name: Select the repository Rust toolchain
+        run: |
+          rustup toolchain install 1.80.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.80.0
+      - name: Build and stage Godot extension
+        run: ./ops/scripts/build-godot-extension.sh
+      - name: Discover Godot extensions through Xvfb import
+        env:
+          RUST_BACKTRACE: "1"
+        run: |
+          timeout 60s xvfb-run -a "$HOME/.local/bin/godot" --path apps/game --import --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy
+          test -f apps/game/.godot/extension_list.cfg
+          test "$(grep -cFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg)" -eq 1
+          test "$(grep -vFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg | sed '/^[[:space:]]*$/d' | wc -l)" -eq 0
       - name: Parse the Godot project headlessly
-        run: "$HOME/.local/bin/godot --headless --path apps/game --editor --quit --audio-driver Dummy"
+        env:
+          RUST_BACKTRACE: "1"
+        run: "$HOME/.local/bin/godot --headless --verbose --path apps/game --quit --audio-driver Dummy"
+      - name: Run WP-010 deterministic Godot parity test
+        run: "timeout 30s $HOME/.local/bin/godot --headless --path apps/game --scene res://scenes/wp010_test.tscn --audio-driver Dummy"
