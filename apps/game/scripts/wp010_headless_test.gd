@@ -56,6 +56,7 @@ func _run() -> void:
 	print("WP010 elapsed golden and repeat compared")
 
 	var batch_json = JSON.stringify(fixture["commands"])
+	print("WP010 batch json: " + batch_json)
 	var batched = bridge.execute_command_batch(advanced["result"]["snapshot"], batch_json)
 	if not check(batched.get("ok", false), "non-empty command batch failed: " + JSON.stringify(batched)):
 		return
