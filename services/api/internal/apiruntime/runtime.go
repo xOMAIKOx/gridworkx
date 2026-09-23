@@ -52,10 +52,14 @@ func Run(ctx context.Context, server Server) error {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			return err
 		}
-		err := <-errCh
-		if err == nil || errors.Is(err, http.ErrServerClosed) {
-			return nil
+		select {
+		case err := <-errCh:
+			if err == nil || errors.Is(err, http.ErrServerClosed) {
+				return nil
+			}
+			return err
+		case <-shutdownCtx.Done():
+			return shutdownCtx.Err()
 		}
-		return err
 	}
 }
