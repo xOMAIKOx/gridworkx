@@ -89,7 +89,7 @@ jobs:
           test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png"
           test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png"
           test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
-          identify "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
+          file "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
       - name: Upload WP-011 visual evidence
         uses: actions/upload-artifact@v4
         with:
