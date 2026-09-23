@@ -9,5 +9,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gridworks-sim = { path = "../gridworks-sim" }
-godot = { version = "=0.2.4", features = ["api-4-2"] }
+godot = "=0.2.4"
 serde_json = "1.0.117"
