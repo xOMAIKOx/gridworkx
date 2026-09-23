@@ -68,7 +68,14 @@ Committed expected values in the WP-011 fixture:
 
 Restart creates a fresh canonical scenario and restores the initial digest; it does not rewind a used snapshot. Bridge unavailable/error states are explicit and non-authoritative; no mock/fake simulation fallback exists.
 
-## R2 onboarding contract evidence
+## R3 presentation-state and responsive evidence
+
+- Guided state sequence is derived from canonical state: `opening.intro` → `opening.inspect` → `opening.diagnose` → `opening.intervene` → `opening.produce` → `opening.complete`.
+- The real process schematic uses selectable component cards for feed conveyor, crusher, screen and output conveyor; stockpile nodes remain visible storage nodes.
+- Player-facing labels map canonical IDs, symptoms and confidence basis points to readable labels; canonical IDs remain internal.
+- Disabled diagnosis, repair and production controls expose their reasons in tooltips and the action-guidance panel.
+- The Xvfb capture follows the same controller action sequence used by the headless contract test.
+
 
 - Presentation states: `opening.intro`, `opening.inspect`, `opening.diagnose`, `opening.intervene`, `opening.produce`, `opening.complete`.
 - Diagnosis candidates: motor bearing seizure, worn belt and screen blockage; selection issues canonical `FailureCommand::Diagnose`.
