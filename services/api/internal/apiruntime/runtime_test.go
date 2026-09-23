@@ -30,6 +30,7 @@ func (f *fakeServer) ListenAndServe() error {
 func (f *fakeServer) Shutdown(context.Context) error {
 	f.shutdown = true
 	if f.shutdownErr != nil {
+		close(f.stopped)
 		return f.shutdownErr
 	}
 	close(f.stopped)
