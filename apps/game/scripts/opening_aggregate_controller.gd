@@ -310,7 +310,7 @@ func _derive_presentation_state(state: Dictionary, capacity: int, finished: int)
 		return "opening.produce"
 	if diagnosis_count > 0:
 		return "opening.intervene"
-	var feed_evidence := state.get("failure", {}).get("evidence", []).any(func(item): return item.get("component_id", "") == "component.feed_conveyor")
+	var feed_evidence: bool = state.get("failure", {}).get("evidence", []).any(func(item): return item.get("component_id", "") == "component.feed_conveyor")
 	if feed_evidence:
 		return "opening.diagnose"
 	if evidence_count > 0:
