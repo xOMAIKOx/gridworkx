@@ -35,10 +35,10 @@ build = (root / "ops/scripts/build-godot-extension.sh").read_text()
 if ".godot/extension_list.cfg" in build or "printf" in build:
     raise SystemExit("WP-010 build helper must not manufacture Godot extension-list project data")
 workflow = (root / ".github/workflows/ci.yml").read_text()
-if "--headless --path apps/game --import --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy" not in workflow:
-    raise SystemExit("WP-010 CI is missing the Godot import discovery scan")
-if "--editor" in workflow or "--quit-after" in workflow or "-eq 134" in workflow or "discovery_status" in workflow:
-    raise SystemExit("WP-010 CI must use strict import discovery without forced editor exit or abort whitelist")
+if "xvfb-run -a" not in workflow or "--path apps/game --import --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy" not in workflow:
+    raise SystemExit("WP-010 CI is missing the Xvfb import discovery scan")
+if "--headless --path apps/game --import" in workflow or "--editor" in workflow or "--quit-after" in workflow or "-eq 134" in workflow or "discovery_status" in workflow:
+    raise SystemExit("WP-010 CI must use strict Xvfb import discovery without forced editor exit or abort whitelist")
 bridge_source = (bridge / "src/lib.rs").read_text()
 for method in ["advance_to_snapshot", "evaluate_facility", "validate_digest"]:
     if method not in bridge_source:
