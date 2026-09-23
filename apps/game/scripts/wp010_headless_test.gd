@@ -1,8 +1,8 @@
-extends SceneTree
+extends Node
 
 func fail(message: String) -> void:
 	push_error(message)
-	quit(1)
+	get_tree().quit(1)
 
 func parse_bridge(payload: String) -> Dictionary:
 	var parsed = JSON.parse_string(payload)
@@ -10,7 +10,7 @@ func parse_bridge(payload: String) -> Dictionary:
 		fail("bridge returned non-object JSON")
 	return parsed
 
-func _init() -> void:
+func _ready() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
@@ -50,4 +50,4 @@ func _run() -> void:
 	var malformed = parse_bridge(bridge.advance_snapshot("{", 1))
 	if malformed.get("ok", true) or malformed["error"]["code"] != "bridge.invalid_input":
 		fail("malformed snapshot was not rejected")
-	quit(0)
+	get_tree().quit(0)

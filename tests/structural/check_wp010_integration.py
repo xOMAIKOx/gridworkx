@@ -8,7 +8,7 @@ if '"crates/gridworks-godot"' not in cargo: raise SystemExit("WP-010 bridge crat
 manifest = (bridge / "Cargo.toml").read_text()
 if 'version = "=0.2.4"' not in manifest: raise SystemExit("WP-010 godot binding is not exactly pinned to 0.2.4")
 if 'gridworks-sim' not in manifest or 'crate-type = ["cdylib", "rlib"]' not in manifest: raise SystemExit("WP-010 bridge crate contract is incomplete")
-for path in ["apps/game/native/gridworks_sim.gdextension", "apps/game/scripts/wp010_headless_test.gd", "tests/deterministic/fixtures/wp010/fixture.json", "ops/scripts/build-godot-extension.sh", "crates/gridworks-sim/tests/wp010_fixture.rs"]:
+for path in ["apps/game/native/gridworks_sim.gdextension", "apps/game/scripts/wp010_headless_test.gd", "apps/game/scenes/wp010_test.tscn", "tests/deterministic/fixtures/wp010/fixture.json", "ops/scripts/build-godot-extension.sh", "crates/gridworks-sim/tests/wp010_fixture.rs"]:
     if not (root / path).is_file(): raise SystemExit(f"WP-010 missing required path: {path}")
 descriptor=(root/"apps/game/native/gridworks_sim.gdextension").read_text()
 if 'entry_symbol = "gdext_rust_init"' not in descriptor or 'linux.debug.x86_64' not in descriptor: raise SystemExit("WP-010 descriptor is incomplete")
