@@ -11,7 +11,9 @@ func parse_bridge(payload: String) -> Dictionary:
 	return parsed
 
 func _init() -> void:
-	var bridge = GridworksSimBridge.new()
+	var bridge = ClassDB.instantiate("GridworksSimBridge")
+	if bridge == null:
+		fail("GDExtension class was not registered")
 	for method in ["bridge_metadata", "create_snapshot", "advance_snapshot", "execute_command_batch", "digest_snapshot", "facility_summary"]:
 		if not bridge.has_method(method):
 			fail("missing bridge method: " + method)
