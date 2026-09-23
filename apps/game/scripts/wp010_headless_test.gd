@@ -14,6 +14,8 @@ func _init() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	if not ClassDB.class_exists("GridworksSimBridge"):
+		fail("GDExtension class is absent from ClassDB")
 	var bridge = ClassDB.instantiate("GridworksSimBridge")
 	if bridge == null:
 		fail("GDExtension class was not registered")
