@@ -85,10 +85,10 @@ The pure Rust fixture test asserts these committed values and writes ignored par
 
 ## Discovery and runtime proof
 
-`ops/scripts/build-godot-extension.sh` stages the real Linux `.so` and fixture artifacts but does not manufacture Godot project data. CI performs the editor discovery scan with a virtual display and Godot 4.7.2 compatibility rendering mode so the process exits cleanly; any non-zero discovery status fails the gate. CI performs the authorized discovery sequence:
+`ops/scripts/build-godot-extension.sh` stages the real Linux `.so` and fixture artifacts but does not manufacture Godot project data. CI performs the authorized Godot 4.7.2 import/discovery lifecycle with compatibility rendering; the command must exit 0 and any non-zero status fails the gate:
 
 ```sh
-timeout 30s godot --headless --editor --path apps/game --quit-after 2 --rendering-method gl_compatibility --rendering-driver opengl3 --disable-render-loop --audio-driver Dummy
+timeout 60s godot --headless --path apps/game --import --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy
 test -f apps/game/.godot/extension_list.cfg
 grep -cFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg
 ```
