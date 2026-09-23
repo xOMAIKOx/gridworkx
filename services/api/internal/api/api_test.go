@@ -7,8 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/xOMAIKOx/gridworkx/services/internal/company"
 	"time"
 )
 
@@ -171,15 +169,24 @@ func TestRoutingReturnsStable404And405(t *testing.T) {
 	}
 }
 
-func TestDomainErrorsMapToStableAPIErrors(t *testing.T) {
-	mapped := mapError(company.ErrNameInvalid)
-	apiErr, ok := mapped.(*APIError)
-	if !ok || apiErr.Status != 422 {
-		t.Fatalf("name error mapped to %#v", mapped)
+func TestRequestIDReflectionUsesNarrowSafeAlphabet(t *testing.T) {
+	h := NewServer(&fakeRepo{}, "test").Mux()
+
+	r := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	r.Header.Set("X-Request-ID", "safe.ID_123:part-value")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if got := w.Header().Get("X-Request-ID"); got != "safe.ID_123:part-value" {
+		t.Fatalf("safe request ID was not preserved: %q", got)
 	}
-	mapped = mapError(company.ErrNameReserved)
-	apiErr, ok = mapped.(*APIError)
-	if !ok || apiErr.Status != 409 {
-		t.Fatalf("reserved error mapped to %#v", mapped)
+
+	for _, unsafeID := range []string{"bad=value", "bad value", "bad=value\nfield"} {
+		r = httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		r.Header.Set("X-Request-ID", unsafeID)
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if got := w.Header().Get("X-Request-ID"); got == unsafeID || got == "" {
+			t.Fatalf("unsafe request ID %q was reflected as %q", unsafeID, got)
+		}
 	}
 }

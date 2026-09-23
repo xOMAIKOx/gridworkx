@@ -27,6 +27,7 @@ type Principal struct {
 	SessionID string
 	Status    string
 }
+
 type GuestResult struct {
 	AccountID       string
 	PlayerID        string
@@ -36,12 +37,14 @@ type GuestResult struct {
 	RawSessionToken string
 	Replay          bool
 }
+
 type MeView struct {
 	AccountID string          `json:"account_id"`
 	PlayerID  string          `json:"player_id"`
 	Status    string          `json:"status"`
 	Profile   json.RawMessage `json:"profile"`
 }
+
 type PublicPlayerView struct {
 	PlayerID      string `json:"player_id"`
 	Handle        string `json:"handle"`
@@ -52,6 +55,7 @@ type PublicPlayerView struct {
 	Visibility    string `json:"visibility"`
 	Discoverable  bool   `json:"discoverable"`
 }
+
 type PublicCompanyView struct {
 	CompanyID            string `json:"company_id"`
 	Name                 string `json:"name"`
@@ -61,11 +65,13 @@ type PublicCompanyView struct {
 	HeadquartersRegionID string `json:"headquarters_region_id,omitempty"`
 	Visibility           string `json:"visibility"`
 }
+
 type PublicGroupView struct {
 	GroupID    string `json:"group_id"`
 	Name       string `json:"name"`
 	Visibility string `json:"visibility"`
 }
+
 type ProfilePatch struct {
 	DisplayName             *string         `json:"display_name,omitempty"`
 	Bio                     *string         `json:"bio,omitempty"`
@@ -76,20 +82,25 @@ type ProfilePatch struct {
 	Discoverable            *bool           `json:"discoverable,omitempty"`
 	NotificationPreferences map[string]bool `json:"notification_preferences,omitempty"`
 }
+
 type CompanyCreateRequest struct {
 	CompanyType string `json:"company_type"`
 	Name        string `json:"name"`
 }
+
 type GroupCreateRequest struct {
 	Name string `json:"name"`
 }
+
 type CreatedEntity struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
+
 type errorEnvelope struct {
 	Error errorBody `json:"error"`
 }
+
 type errorBody struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
@@ -100,6 +111,7 @@ type errorBody struct {
 type RevocationRepository interface {
 	RevokePresentedSession(context.Context, string, time.Time) error
 }
+
 type IdentityRepository interface {
 	IssueGuest(context.Context, string, time.Time) (GuestResult, error)
 	Authenticate(context.Context, string, time.Time) (Principal, error)
@@ -108,11 +120,13 @@ type IdentityRepository interface {
 	UpdateProfile(context.Context, Principal, string, ProfilePatch, time.Time) (MeView, error)
 	GetPublicPlayer(context.Context, string) (PublicPlayerView, error)
 }
+
 type CompanyRepository interface {
 	CreateCompany(context.Context, Principal, string, CompanyCreateRequest, time.Time) (CreatedEntity, error)
 	GetPublicCompany(context.Context, string) (PublicCompanyView, error)
 	CreateGroup(context.Context, Principal, string, GroupCreateRequest, time.Time) (CreatedEntity, error)
 }
+
 type Repository interface {
 	IdentityRepository
 	CompanyRepository
@@ -144,29 +158,40 @@ type Server struct {
 func NewServer(repo Repository, version string) *Server {
 	return &Server{Repo: repo, Version: version, Now: time.Now, MaxBody: MaxJSONBody}
 }
+
+type routeSpec struct {
+	Method  string
+	Pattern string
+	Handler func(*Server) http.HandlerFunc
+}
+
+var routeRegistry = []routeSpec{
+	{Method: http.MethodGet, Pattern: "/healthz", Handler: func(s *Server) http.HandlerFunc { return s.health }},
+	{Method: http.MethodGet, Pattern: "/readyz", Handler: func(s *Server) http.HandlerFunc { return s.ready }},
+	{Method: http.MethodGet, Pattern: "/version", Handler: func(s *Server) http.HandlerFunc { return s.version }},
+	{Method: http.MethodPost, Pattern: "/api/v1/auth/guest", Handler: func(s *Server) http.HandlerFunc { return s.guest }},
+	{Method: http.MethodDelete, Pattern: "/api/v1/auth/session", Handler: func(s *Server) http.HandlerFunc { return s.revoke }},
+	{Method: http.MethodGet, Pattern: "/api/v1/me", Handler: func(s *Server) http.HandlerFunc { return s.me }},
+	{Method: http.MethodPatch, Pattern: "/api/v1/me/profile", Handler: func(s *Server) http.HandlerFunc { return s.profile }},
+	{Method: http.MethodGet, Pattern: "/api/v1/players/{player_id}", Handler: func(s *Server) http.HandlerFunc { return s.player }},
+	{Method: http.MethodPost, Pattern: "/api/v1/companies", Handler: func(s *Server) http.HandlerFunc { return s.createCompany }},
+	{Method: http.MethodGet, Pattern: "/api/v1/companies/{company_id}", Handler: func(s *Server) http.HandlerFunc { return s.company }},
+	{Method: http.MethodPost, Pattern: "/api/v1/company-groups", Handler: func(s *Server) http.HandlerFunc { return s.createGroup }},
+}
+
 func RouteInventory() map[string][]string {
-	return map[string][]string{
-		"/healthz": {"GET"}, "/readyz": {"GET"}, "/version": {"GET"},
-		"/api/v1/auth/guest": {"POST"}, "/api/v1/auth/session": {"DELETE"},
-		"/api/v1/me": {"GET"}, "/api/v1/me/profile": {"PATCH"},
-		"/api/v1/players/{player_id}": {"GET"}, "/api/v1/companies": {"POST"},
-		"/api/v1/companies/{company_id}": {"GET"}, "/api/v1/company-groups": {"POST"},
+	inventory := make(map[string][]string, len(routeRegistry))
+	for _, route := range routeRegistry {
+		inventory[route.Pattern] = append(inventory[route.Pattern], route.Method)
 	}
+	return inventory
 }
 
 func (s *Server) Mux() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", s.health)
-	mux.HandleFunc("GET /readyz", s.ready)
-	mux.HandleFunc("GET /version", s.version)
-	mux.HandleFunc("POST /api/v1/auth/guest", s.guest)
-	mux.HandleFunc("DELETE /api/v1/auth/session", s.revoke)
-	mux.HandleFunc("GET /api/v1/me", s.me)
-	mux.HandleFunc("PATCH /api/v1/me/profile", s.profile)
-	mux.HandleFunc("GET /api/v1/players/{player_id}", s.player)
-	mux.HandleFunc("POST /api/v1/companies", s.createCompany)
-	mux.HandleFunc("GET /api/v1/companies/{company_id}", s.company)
-	mux.HandleFunc("POST /api/v1/company-groups", s.createGroup)
+	for _, route := range routeRegistry {
+		mux.HandleFunc(route.Method+" "+route.Pattern, route.Handler(s))
+	}
 	mux.HandleFunc("/", s.notFound)
 	return s.middleware(s.methodGuard(mux))
 }
@@ -182,12 +207,14 @@ func (w *statusWriter) WriteHeader(status int) {
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
+
 func (w *statusWriter) Write(p []byte) (int, error) {
 	if w.status == 0 {
 		w.status = 200
 	}
 	return w.ResponseWriter.Write(p)
 }
+
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := r.Header.Get("X-Request-ID")
@@ -195,6 +222,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			requestID = newRequestID()
 		}
 		ctx := context.WithValue(r.Context(), requestIDKey{}, requestID)
+		r = r.WithContext(ctx)
 		sw := &statusWriter{ResponseWriter: w}
 		sw.Header().Set("X-Request-ID", requestID)
 		sw.Header().Set("X-Content-Type-Options", "nosniff")
@@ -205,24 +233,29 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			}
 			log.Printf("api_request request_id=%s method=%s path=%s status=%d duration_ms=%d", requestID, r.Method, r.URL.Path, sw.status, time.Since(start).Milliseconds())
 		}()
-		next.ServeHTTP(sw, r.WithContext(ctx))
+		next.ServeHTTP(sw, r)
 	})
 }
 
 type requestIDKey struct{}
 
 func requestID(ctx context.Context) string { v, _ := ctx.Value(requestIDKey{}).(string); return v }
+
 func validRequestID(v string) bool {
 	if len(v) < 1 || len(v) > 96 {
 		return false
 	}
 	for _, r := range v {
-		if r < 0x21 || r > 0x7e {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		if r != '.' && r != '_' && r != ':' && r != '-' {
 			return false
 		}
 	}
 	return true
 }
+
 func newRequestID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -230,26 +263,49 @@ func newRequestID() string {
 	}
 	return hex.EncodeToString(b)
 }
+
 func (s *Server) now() time.Time {
 	if s.Now != nil {
 		return s.Now().UTC()
 	}
 	return time.Now().UTC()
 }
-func (s *Server) methodGuard(next http.Handler) http.Handler {
-	allowed := map[string]string{"/healthz": "GET", "/readyz": "GET", "/version": "GET", "/api/v1/auth/guest": "POST", "/api/v1/auth/session": "DELETE", "/api/v1/me": "GET", "/api/v1/me/profile": "PATCH", "/api/v1/companies": "POST", "/api/v1/company-groups": "POST"}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		allow, known := allowed[path]
-		if !known {
-			if strings.HasPrefix(path, "/api/v1/players/") {
-				allow, known = "GET", true
-			} else if strings.HasPrefix(path, "/api/v1/companies/") {
-				allow, known = "GET", true
+
+func routePathMatches(pattern, path string) bool {
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(patternParts) != len(pathParts) {
+		return false
+	}
+	for i, part := range patternParts {
+		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") {
+			if pathParts[i] == "" {
+				return false
 			}
+			continue
 		}
-		if known && r.Method != allow {
-			w.Header().Set("Allow", allow)
+		if part != pathParts[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) methodGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowed := make([]string, 0, 2)
+		for _, route := range routeRegistry {
+			if !routePathMatches(route.Pattern, r.URL.Path) {
+				continue
+			}
+			if r.Method == route.Method {
+				next.ServeHTTP(w, r)
+				return
+			}
+			allowed = append(allowed, route.Method)
+		}
+		if len(allowed) > 0 {
+			w.Header().Set("Allow", strings.Join(allowed, ", "))
 			writeError(w, r, &APIError{Status: 405, Code: "route.method_not_allowed", Message: "method not allowed"})
 			return
 		}
@@ -264,6 +320,7 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok", "role": "gridworks-api"}, false)
 }
+
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
@@ -273,9 +330,11 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]string{"status": "ready"}, false)
 }
+
 func (s *Server) version(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"api_version": "v1", "version": s.Version}, false)
 }
+
 func requireJSON(r *http.Request) error {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || strings.ToLower(media) != "application/json" {
@@ -283,6 +342,7 @@ func requireJSON(r *http.Request) error {
 	}
 	return nil
 }
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any, max int64) error {
 	if err := requireJSON(r); err != nil {
 		return err
@@ -306,6 +366,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any, max int64) erro
 	}
 	return nil
 }
+
 func writeJSON(w http.ResponseWriter, status int, v any, noStore bool) {
 	w.Header().Set("Content-Type", "application/json")
 	if noStore {
@@ -314,6 +375,7 @@ func writeJSON(w http.ResponseWriter, status int, v any, noStore bool) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) {
@@ -321,6 +383,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	writeJSON(w, apiErr.Status, errorEnvelope{Error: errorBody{Code: apiErr.Code, Message: apiErr.Message, RequestID: requestID(r.Context()), Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}}, true)
 }
+
 func idempotency(r *http.Request) (string, error) {
 	v := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if len(v) < 1 || len(v) > 160 {
@@ -333,6 +396,7 @@ func idempotency(r *http.Request) (string, error) {
 	}
 	return v, nil
 }
+
 func bearer(r *http.Request) (string, error) {
 	parts := strings.Fields(r.Header.Get("Authorization"))
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
@@ -340,6 +404,7 @@ func bearer(r *http.Request) (string, error) {
 	}
 	return parts[1], nil
 }
+
 func (s *Server) principal(r *http.Request) (Principal, string, error) {
 	token, err := bearer(r)
 	if err != nil {
@@ -351,6 +416,7 @@ func (s *Server) principal(r *http.Request) (Principal, string, error) {
 	}
 	return p, token, nil
 }
+
 func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
 	key, err := idempotency(r)
 	if err != nil {
@@ -376,6 +442,7 @@ func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, response, true)
 }
+
 func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	token, err := bearer(r)
 	if err != nil {
@@ -399,6 +466,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	_ = token
 	writeJSON(w, 204, nil, true)
 }
+
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -412,6 +480,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, true)
 }
+
 func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -439,6 +508,7 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, true)
 }
+
 func (s *Server) player(w http.ResponseWriter, r *http.Request) {
 	v, err := s.Repo.GetPublicPlayer(r.Context(), r.PathValue("player_id"))
 	if err != nil {
@@ -447,6 +517,7 @@ func (s *Server) player(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, false)
 }
+
 func (s *Server) createCompany(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -474,6 +545,7 @@ func (s *Server) createCompany(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, v, true)
 }
+
 func (s *Server) company(w http.ResponseWriter, r *http.Request) {
 	v, err := s.Repo.GetPublicCompany(r.Context(), r.PathValue("company_id"))
 	if err != nil {
@@ -482,6 +554,7 @@ func (s *Server) company(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, false)
 }
+
 func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -505,6 +578,7 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, v, true)
 }
+
 func validateProfilePatch(p ProfilePatch) error {
 	if p.DisplayName == nil && p.Bio == nil && p.Locale == nil && p.Timezone == nil && p.Visibility == nil && p.DMPolicy == nil && p.Discoverable == nil && p.NotificationPreferences == nil {
 		return &APIError{Status: 400, Code: "profile.empty_patch", Message: "profile patch is empty"}
@@ -574,6 +648,7 @@ func mapError(err error) error {
 	}
 	return err
 }
+
 func DigestToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])

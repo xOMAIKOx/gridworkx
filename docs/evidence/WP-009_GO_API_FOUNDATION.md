@@ -44,17 +44,16 @@ R1–R12 remediation extends the API foundation with JSON-safe guest receipt ref
 
 The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provider, host, reverse-proxy, deployment, port or container runtime action occurred.
 
-## R13–R20 remediation evidence
+## R13–R21 remediation evidence
 
-- First-use idempotency now serializes through transaction-scoped PostgreSQL advisory locks per domain namespace/key before receipt lookup or mutation.
-- Profile preferences use an explicit `$8::jsonb` write contract; create/replay display results use persisted trimmed display values; repository SQLSTATE mapping and profile domain errors remain stable API errors.
-- Guest receipts are strictly decoded with unknown-field rejection and replay joins account/player/session/profile consistency.
-- Explicit method-aware dispatch provides stable 404/405 behavior and `Allow`; route, timeout, header, request, panic and SQL-mock adapter tests cover the hardening boundary.
-- OpenAPI is semantically validated by pinned kin-openapi and compared against the Go route inventory; concrete response schemas/examples, error responses and mutation metadata are present.
-- PostgreSQL adapter tests execute actual repository methods through sqlmock, including receipt locking/query order and entropy-failure rollback; live PostgreSQL trigger behavior remains an environment gate.
-- Repository entropy is injectable; production uses `crypto/rand.Reader` and failure tests prove no mutation SQL follows entropy failure.
+- Identity/profile and company/group first-use idempotency serializes through transaction-scoped PostgreSQL advisory locks derived from the domain namespace plus idempotency key before receipt lookup or mutation. Same-payload replay and contradictory-key conflict paths are exercised through the real repository methods with sqlmock.
+- Profile notification preferences use an explicit `$8::jsonb` write contract while preserving nil/no-change semantics.
+- Stable method-aware dispatch is generated from the same Go route registry used to register handlers and produce `RouteInventory()`; unknown paths remain JSON 404 and known paths with the wrong method return JSON 405 plus `Allow`, including parameterized routes.
+- OpenAPI 3.1 is semantically validated by pinned `kin-openapi v0.123.0` and compared against the Go route inventory. Successful response schemas/examples, stable errors, bearer security and idempotency metadata remain repository-owned.
+- HTTP regression coverage includes media type, malformed/trailing/oversized JSON, request-ID generation/reflection, panic recovery, CORS absence, no-store, authentication states, replay-safe revoke, profile policy/idempotency, company/group authorization/conflicts/visibility, and forbidden later/raw routes.
+- PostgreSQL adapter regression coverage executes real guest/profile/company/group repository methods using sqlmock, verifies advisory-lock ordering, transaction replay/conflict, raw-token exclusion, server-derived player ownership, explicit JSONB SQL, nullable public reads, representative SQLSTATE mapping and parent-context cancellation. Tests explicitly do not claim to prove PostgreSQL trigger behavior.
+- Repository entropy is injectable for tests while production uses `crypto/rand.Reader`. Failure coverage proves rollback/no partial commit at guest generation plus company/group entity, ownership and history-ID stages.
+- API runtime construction is factored through `services/api/internal/apiruntime`: loopback remains the default, HTTP timeouts/header limits are non-zero, graceful shutdown is testable without a public port, and non-`ErrServerClosed` serve failures propagate.
+- External request IDs are restricted to ASCII alphanumeric plus `._:-`, non-empty and <=96 characters. Unsafe printable/control values are replaced before reflection/logging; Authorization, bodies and DSNs are not access-log fields.
 
-## R21–R22 remediation evidence
-
-- Domain errors now map explicitly to safe 4xx API envelopes: company name validation/conflict, identity validation/conflict and accepted state/principal failures no longer rely on generic 500 handling.
-- Guest receipt decoding is strict about unknown fields and trailing JSON; replay verifies relational account/player/session/profile consistency and uses the same nullable-normalized profile shape as first issuance.
+The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provider, host, reverse-proxy, deployment, port or container runtime action occurred.
