@@ -30,12 +30,14 @@ func (s *scriptedRepo) Ping(ctx context.Context) error {
 	}
 	return nil
 }
+
 func (s *scriptedRepo) IssueGuest(ctx context.Context, key string, now time.Time) (GuestResult, error) {
 	if s.issueGuestFn != nil {
 		return s.issueGuestFn(ctx, key, now)
 	}
 	return GuestResult{AccountID: "account.one", PlayerID: "player.one", SessionID: "session.one", ExpiresAt: now.Add(time.Hour), Profile: json.RawMessage(`{"display_name":"Guest"}`), RawSessionToken: "raw-once"}, nil
 }
+
 func (s *scriptedRepo) Authenticate(ctx context.Context, token string, now time.Time) (Principal, error) {
 	if s.authenticateFn != nil {
 		return s.authenticateFn(ctx, token, now)
@@ -45,43 +47,51 @@ func (s *scriptedRepo) Authenticate(ctx context.Context, token string, now time.
 	}
 	return Principal{AccountID: "account.one", PlayerID: "player.one", SessionID: "session.one", Status: "guest"}, nil
 }
+
 func (s *scriptedRepo) RevokeSession(context.Context, Principal, time.Time) error { return nil }
+
 func (s *scriptedRepo) RevokePresentedSession(ctx context.Context, token string, now time.Time) error {
 	if s.revokeFn != nil {
 		return s.revokeFn(ctx, token, now)
 	}
 	return nil
 }
+
 func (s *scriptedRepo) GetMe(ctx context.Context, p Principal) (MeView, error) {
 	if s.getMeFn != nil {
 		return s.getMeFn(ctx, p)
 	}
 	return MeView{AccountID: p.AccountID, PlayerID: p.PlayerID, Status: p.Status, Profile: json.RawMessage(`{"display_name":"Guest"}`)}, nil
 }
+
 func (s *scriptedRepo) UpdateProfile(ctx context.Context, p Principal, key string, patch ProfilePatch, now time.Time) (MeView, error) {
 	if s.updateProfileFn != nil {
 		return s.updateProfileFn(ctx, p, key, patch, now)
 	}
 	return MeView{AccountID: p.AccountID, PlayerID: p.PlayerID, Status: p.Status, Profile: json.RawMessage(`{"display_name":"Updated"}`)}, nil
 }
+
 func (s *scriptedRepo) GetPublicPlayer(ctx context.Context, id string) (PublicPlayerView, error) {
 	if s.publicPlayerFn != nil {
 		return s.publicPlayerFn(ctx, id)
 	}
 	return PublicPlayerView{PlayerID: id, Handle: "public-player", DisplayName: "Public", Locale: "en", Visibility: "public", Discoverable: true}, nil
 }
+
 func (s *scriptedRepo) CreateCompany(ctx context.Context, p Principal, key string, req CompanyCreateRequest, now time.Time) (CreatedEntity, error) {
 	if s.createCompanyFn != nil {
 		return s.createCompanyFn(ctx, p, key, req, now)
 	}
 	return CreatedEntity{ID: "company.one", Name: strings.TrimSpace(req.Name)}, nil
 }
+
 func (s *scriptedRepo) GetPublicCompany(ctx context.Context, id string) (PublicCompanyView, error) {
 	if s.publicCompanyFn != nil {
 		return s.publicCompanyFn(ctx, id)
 	}
 	return PublicCompanyView{CompanyID: id, Name: "Company", Visibility: "public"}, nil
 }
+
 func (s *scriptedRepo) CreateGroup(ctx context.Context, p Principal, key string, req GroupCreateRequest, now time.Time) (CreatedEntity, error) {
 	if s.createGroupFn != nil {
 		return s.createGroupFn(ctx, p, key, req, now)

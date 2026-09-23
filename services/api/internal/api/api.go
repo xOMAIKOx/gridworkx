@@ -26,6 +26,7 @@ type Principal struct {
 	SessionID string
 	Status    string
 }
+
 type GuestResult struct {
 	AccountID       string
 	PlayerID        string
@@ -35,12 +36,14 @@ type GuestResult struct {
 	RawSessionToken string
 	Replay          bool
 }
+
 type MeView struct {
 	AccountID string          `json:"account_id"`
 	PlayerID  string          `json:"player_id"`
 	Status    string          `json:"status"`
 	Profile   json.RawMessage `json:"profile"`
 }
+
 type PublicPlayerView struct {
 	PlayerID      string `json:"player_id"`
 	Handle        string `json:"handle"`
@@ -51,6 +54,7 @@ type PublicPlayerView struct {
 	Visibility    string `json:"visibility"`
 	Discoverable  bool   `json:"discoverable"`
 }
+
 type PublicCompanyView struct {
 	CompanyID            string `json:"company_id"`
 	Name                 string `json:"name"`
@@ -60,11 +64,13 @@ type PublicCompanyView struct {
 	HeadquartersRegionID string `json:"headquarters_region_id,omitempty"`
 	Visibility           string `json:"visibility"`
 }
+
 type PublicGroupView struct {
 	GroupID    string `json:"group_id"`
 	Name       string `json:"name"`
 	Visibility string `json:"visibility"`
 }
+
 type ProfilePatch struct {
 	DisplayName             *string         `json:"display_name,omitempty"`
 	Bio                     *string         `json:"bio,omitempty"`
@@ -75,20 +81,25 @@ type ProfilePatch struct {
 	Discoverable            *bool           `json:"discoverable,omitempty"`
 	NotificationPreferences map[string]bool `json:"notification_preferences,omitempty"`
 }
+
 type CompanyCreateRequest struct {
 	CompanyType string `json:"company_type"`
 	Name        string `json:"name"`
 }
+
 type GroupCreateRequest struct {
 	Name string `json:"name"`
 }
+
 type CreatedEntity struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
+
 type errorEnvelope struct {
 	Error errorBody `json:"error"`
 }
+
 type errorBody struct {
 	Code      string `json:"code"`
 	Message   string `json:"message"`
@@ -99,6 +110,7 @@ type errorBody struct {
 type RevocationRepository interface {
 	RevokePresentedSession(context.Context, string, time.Time) error
 }
+
 type IdentityRepository interface {
 	IssueGuest(context.Context, string, time.Time) (GuestResult, error)
 	Authenticate(context.Context, string, time.Time) (Principal, error)
@@ -107,11 +119,13 @@ type IdentityRepository interface {
 	UpdateProfile(context.Context, Principal, string, ProfilePatch, time.Time) (MeView, error)
 	GetPublicPlayer(context.Context, string) (PublicPlayerView, error)
 }
+
 type CompanyRepository interface {
 	CreateCompany(context.Context, Principal, string, CompanyCreateRequest, time.Time) (CreatedEntity, error)
 	GetPublicCompany(context.Context, string) (PublicCompanyView, error)
 	CreateGroup(context.Context, Principal, string, GroupCreateRequest, time.Time) (CreatedEntity, error)
 }
+
 type Repository interface {
 	IdentityRepository
 	CompanyRepository
@@ -143,6 +157,7 @@ type Server struct {
 func NewServer(repo Repository, version string) *Server {
 	return &Server{Repo: repo, Version: version, Now: time.Now, MaxBody: MaxJSONBody}
 }
+
 type routeSpec struct {
 	Method  string
 	Pattern string
@@ -191,12 +206,14 @@ func (w *statusWriter) WriteHeader(status int) {
 	}
 	w.ResponseWriter.WriteHeader(status)
 }
+
 func (w *statusWriter) Write(p []byte) (int, error) {
 	if w.status == 0 {
 		w.status = 200
 	}
 	return w.ResponseWriter.Write(p)
 }
+
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := r.Header.Get("X-Request-ID")
@@ -222,6 +239,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 type requestIDKey struct{}
 
 func requestID(ctx context.Context) string { v, _ := ctx.Value(requestIDKey{}).(string); return v }
+
 func validRequestID(v string) bool {
 	if len(v) < 1 || len(v) > 96 {
 		return false
@@ -236,6 +254,7 @@ func validRequestID(v string) bool {
 	}
 	return true
 }
+
 func newRequestID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -243,12 +262,14 @@ func newRequestID() string {
 	}
 	return hex.EncodeToString(b)
 }
+
 func (s *Server) now() time.Time {
 	if s.Now != nil {
 		return s.Now().UTC()
 	}
 	return time.Now().UTC()
 }
+
 func routePathMatches(pattern, path string) bool {
 	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
@@ -298,6 +319,7 @@ func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok", "role": "gridworks-api"}, false)
 }
+
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
@@ -307,9 +329,11 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]string{"status": "ready"}, false)
 }
+
 func (s *Server) version(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"api_version": "v1", "version": s.Version}, false)
 }
+
 func requireJSON(r *http.Request) error {
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || strings.ToLower(media) != "application/json" {
@@ -317,6 +341,7 @@ func requireJSON(r *http.Request) error {
 	}
 	return nil
 }
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any, max int64) error {
 	if err := requireJSON(r); err != nil {
 		return err
@@ -340,6 +365,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any, max int64) erro
 	}
 	return nil
 }
+
 func writeJSON(w http.ResponseWriter, status int, v any, noStore bool) {
 	w.Header().Set("Content-Type", "application/json")
 	if noStore {
@@ -348,6 +374,7 @@ func writeJSON(w http.ResponseWriter, status int, v any, noStore bool) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) {
@@ -355,6 +382,7 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	writeJSON(w, apiErr.Status, errorEnvelope{Error: errorBody{Code: apiErr.Code, Message: apiErr.Message, RequestID: requestID(r.Context()), Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}}, true)
 }
+
 func idempotency(r *http.Request) (string, error) {
 	v := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if len(v) < 1 || len(v) > 160 {
@@ -367,6 +395,7 @@ func idempotency(r *http.Request) (string, error) {
 	}
 	return v, nil
 }
+
 func bearer(r *http.Request) (string, error) {
 	parts := strings.Fields(r.Header.Get("Authorization"))
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
@@ -374,6 +403,7 @@ func bearer(r *http.Request) (string, error) {
 	}
 	return parts[1], nil
 }
+
 func (s *Server) principal(r *http.Request) (Principal, string, error) {
 	token, err := bearer(r)
 	if err != nil {
@@ -385,6 +415,7 @@ func (s *Server) principal(r *http.Request) (Principal, string, error) {
 	}
 	return p, token, nil
 }
+
 func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
 	key, err := idempotency(r)
 	if err != nil {
@@ -410,6 +441,7 @@ func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, response, true)
 }
+
 func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	token, err := bearer(r)
 	if err != nil {
@@ -433,6 +465,7 @@ func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
 	_ = token
 	writeJSON(w, 204, nil, true)
 }
+
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -446,6 +479,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, true)
 }
+
 func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -473,6 +507,7 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, true)
 }
+
 func (s *Server) player(w http.ResponseWriter, r *http.Request) {
 	v, err := s.Repo.GetPublicPlayer(r.Context(), r.PathValue("player_id"))
 	if err != nil {
@@ -481,6 +516,7 @@ func (s *Server) player(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, false)
 }
+
 func (s *Server) createCompany(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -508,6 +544,7 @@ func (s *Server) createCompany(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, v, true)
 }
+
 func (s *Server) company(w http.ResponseWriter, r *http.Request) {
 	v, err := s.Repo.GetPublicCompany(r.Context(), r.PathValue("company_id"))
 	if err != nil {
@@ -516,6 +553,7 @@ func (s *Server) company(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, v, false)
 }
+
 func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 	p, _, err := s.principal(r)
 	if err != nil {
@@ -539,6 +577,7 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, v, true)
 }
+
 func validateProfilePatch(p ProfilePatch) error {
 	if p.DisplayName == nil && p.Bio == nil && p.Locale == nil && p.Timezone == nil && p.Visibility == nil && p.DMPolicy == nil && p.Discoverable == nil && p.NotificationPreferences == nil {
 		return &APIError{Status: 400, Code: "profile.empty_patch", Message: "profile patch is empty"}
@@ -580,6 +619,7 @@ func mapError(err error) error {
 	}
 	return err
 }
+
 func DigestToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
