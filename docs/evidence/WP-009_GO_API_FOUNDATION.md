@@ -43,3 +43,13 @@ Provider linking is intentionally not public. Profile handle/avatar/auth changes
 R1–R12 remediation extends the API foundation with JSON-safe guest receipt references and explicit durable replay credential-unavailable semantics; transactional company/group receipt claim/replay using accepted WP-008 digest inputs; propagated CSPRNG errors; SQLSTATE/constraint-aware safe error mapping; centralized profile validation and JSONB preference encoding; restricted account-state authentication; replay-safe current-session revoke; nullable public DTO handling; shared WP-008 name normalization; bounded DB-pool/server hardening; OpenAPI schema/operation validation; and expanded HTTP/adapter regression evidence.
 
 The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provider, host, reverse-proxy, deployment, port or container runtime action occurred.
+
+## R13–R20 remediation evidence
+
+- First-use idempotency now serializes through transaction-scoped PostgreSQL advisory locks per domain namespace/key before receipt lookup or mutation.
+- Profile preferences use an explicit `$8::jsonb` write contract; create/replay display results use persisted trimmed display values; repository SQLSTATE mapping and profile domain errors remain stable API errors.
+- Guest receipts are strictly decoded with unknown-field rejection and replay joins account/player/session/profile consistency.
+- Explicit method-aware dispatch provides stable 404/405 behavior and `Allow`; route, timeout, header, request, panic and SQL-mock adapter tests cover the hardening boundary.
+- OpenAPI is semantically validated by pinned kin-openapi and compared against the Go route inventory; concrete response schemas/examples, error responses and mutation metadata are present.
+- PostgreSQL adapter tests execute actual repository methods through sqlmock, including receipt locking/query order and entropy-failure rollback; live PostgreSQL trigger behavior remains an environment gate.
+- Repository entropy is injectable; production uses `crypto/rand.Reader` and failure tests prove no mutation SQL follows entropy failure.
