@@ -70,14 +70,14 @@ fn transition_result(transition: gridworks_sim::Transition) -> Result<Value, GSt
 }
 
 #[derive(GodotClass)]
-#[class(base=RefCounted, init)]
+#[class(base=RefCounted)]
 pub struct GridworksSimBridge {
     base: Base<RefCounted>,
 }
 
 #[godot_api]
-impl INode for GridworksSimBridge {
-    fn init(base: Base<Node>) -> Self {
+impl IRefCounted for GridworksSimBridge {
+    fn init(base: Base<RefCounted>) -> Self {
         Self { base }
     }
 }
