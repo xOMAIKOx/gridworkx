@@ -55,8 +55,15 @@ func _run() -> void:
 		return
 	print("WP010 elapsed golden and repeat compared")
 
-	var batch_json = JSON.stringify(fixture["commands"])
-	print("WP010 batch json: " + batch_json)
+	var commands = fixture["commands"].duplicate(true)
+	for command in commands:
+		command["effective_time_ms"] = int(command["effective_time_ms"])
+		if command["payload"].has("adjust_register"):
+			command["payload"]["adjust_register"]["delta"] = int(command["payload"]["adjust_register"]["delta"])
+		if command["payload"].has("seeded_pulse"):
+			for index in command["payload"]["seeded_pulse"]["options"].size():
+				command["payload"]["seeded_pulse"]["options"][index] = int(command["payload"]["seeded_pulse"]["options"][index])
+	var batch_json = JSON.stringify(commands)
 	var batched = bridge.execute_command_batch(advanced["result"]["snapshot"], batch_json)
 	if not check(batched.get("ok", false), "non-empty command batch failed: " + JSON.stringify(batched)):
 		return
@@ -71,7 +78,7 @@ func _run() -> void:
 	var duplicate = bridge.execute_command_batch(batched["result"]["snapshot"], batch_json)
 	if not expect_error(duplicate, "bridge.duplicate_command", "duplicate command batch"):
 		return
-	var failing_commands = [fixture["commands"][0], {"command_id": "wp010.bad", "command_type": "unsupported.command", "schema_version": "schema-0.1.0", "rules_version": "rules-0.1.0", "effective_time_ms": 5000, "idempotency_key": "wp010.bad.v1", "payload": {"adjust_register": {"delta": 1}}}]
+	var failing_commands = [commands[0], {"command_id": "wp010.bad", "command_type": "unsupported.command", "schema_version": "schema-0.1.0", "rules_version": "rules-0.1.0", "effective_time_ms": 5000, "idempotency_key": "wp010.bad.v1", "payload": {"adjust_register": {"delta": 1}}}]
 	var atomic_failure = bridge.execute_command_batch(advanced["result"]["snapshot"], JSON.stringify(failing_commands))
 	if not expect_error(atomic_failure, "bridge.unsupported_command", "later command atomicity"):
 		return
