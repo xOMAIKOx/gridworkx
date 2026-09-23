@@ -61,7 +61,7 @@ func _run() -> void:
 		if command["payload"].has("adjust_register"):
 			command["payload"]["adjust_register"]["delta"] = int(command["payload"]["adjust_register"]["delta"])
 		if command["payload"].has("seeded_pulse"):
-			for index in command["payload"]["seeded_pulse"]["options"].size():
+			for index in range(command["payload"]["seeded_pulse"]["options"].size()):
 				command["payload"]["seeded_pulse"]["options"][index] = int(command["payload"]["seeded_pulse"]["options"][index])
 	var batch_json = JSON.stringify(commands)
 	var batched = bridge.execute_command_batch(advanced["result"]["snapshot"], batch_json)
