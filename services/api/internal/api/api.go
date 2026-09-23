@@ -143,29 +143,39 @@ type Server struct {
 func NewServer(repo Repository, version string) *Server {
 	return &Server{Repo: repo, Version: version, Now: time.Now, MaxBody: MaxJSONBody}
 }
+type routeSpec struct {
+	Method  string
+	Pattern string
+	Handler func(*Server) http.HandlerFunc
+}
+
+var routeRegistry = []routeSpec{
+	{Method: http.MethodGet, Pattern: "/healthz", Handler: func(s *Server) http.HandlerFunc { return s.health }},
+	{Method: http.MethodGet, Pattern: "/readyz", Handler: func(s *Server) http.HandlerFunc { return s.ready }},
+	{Method: http.MethodGet, Pattern: "/version", Handler: func(s *Server) http.HandlerFunc { return s.version }},
+	{Method: http.MethodPost, Pattern: "/api/v1/auth/guest", Handler: func(s *Server) http.HandlerFunc { return s.guest }},
+	{Method: http.MethodDelete, Pattern: "/api/v1/auth/session", Handler: func(s *Server) http.HandlerFunc { return s.revoke }},
+	{Method: http.MethodGet, Pattern: "/api/v1/me", Handler: func(s *Server) http.HandlerFunc { return s.me }},
+	{Method: http.MethodPatch, Pattern: "/api/v1/me/profile", Handler: func(s *Server) http.HandlerFunc { return s.profile }},
+	{Method: http.MethodGet, Pattern: "/api/v1/players/{player_id}", Handler: func(s *Server) http.HandlerFunc { return s.player }},
+	{Method: http.MethodPost, Pattern: "/api/v1/companies", Handler: func(s *Server) http.HandlerFunc { return s.createCompany }},
+	{Method: http.MethodGet, Pattern: "/api/v1/companies/{company_id}", Handler: func(s *Server) http.HandlerFunc { return s.company }},
+	{Method: http.MethodPost, Pattern: "/api/v1/company-groups", Handler: func(s *Server) http.HandlerFunc { return s.createGroup }},
+}
+
 func RouteInventory() map[string][]string {
-	return map[string][]string{
-		"/healthz": {"GET"}, "/readyz": {"GET"}, "/version": {"GET"},
-		"/api/v1/auth/guest": {"POST"}, "/api/v1/auth/session": {"DELETE"},
-		"/api/v1/me": {"GET"}, "/api/v1/me/profile": {"PATCH"},
-		"/api/v1/players/{player_id}": {"GET"}, "/api/v1/companies": {"POST"},
-		"/api/v1/companies/{company_id}": {"GET"}, "/api/v1/company-groups": {"POST"},
+	inventory := make(map[string][]string, len(routeRegistry))
+	for _, route := range routeRegistry {
+		inventory[route.Pattern] = append(inventory[route.Pattern], route.Method)
 	}
+	return inventory
 }
 
 func (s *Server) Mux() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", s.health)
-	mux.HandleFunc("GET /readyz", s.ready)
-	mux.HandleFunc("GET /version", s.version)
-	mux.HandleFunc("POST /api/v1/auth/guest", s.guest)
-	mux.HandleFunc("DELETE /api/v1/auth/session", s.revoke)
-	mux.HandleFunc("GET /api/v1/me", s.me)
-	mux.HandleFunc("PATCH /api/v1/me/profile", s.profile)
-	mux.HandleFunc("GET /api/v1/players/{player_id}", s.player)
-	mux.HandleFunc("POST /api/v1/companies", s.createCompany)
-	mux.HandleFunc("GET /api/v1/companies/{company_id}", s.company)
-	mux.HandleFunc("POST /api/v1/company-groups", s.createGroup)
+	for _, route := range routeRegistry {
+		mux.HandleFunc(route.Method+" "+route.Pattern, route.Handler(s))
+	}
 	mux.HandleFunc("/", s.notFound)
 	return s.middleware(s.methodGuard(mux))
 }
@@ -238,20 +248,41 @@ func (s *Server) now() time.Time {
 	}
 	return time.Now().UTC()
 }
-func (s *Server) methodGuard(next http.Handler) http.Handler {
-	allowed := map[string]string{"/healthz": "GET", "/readyz": "GET", "/version": "GET", "/api/v1/auth/guest": "POST", "/api/v1/auth/session": "DELETE", "/api/v1/me": "GET", "/api/v1/me/profile": "PATCH", "/api/v1/companies": "POST", "/api/v1/company-groups": "POST"}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-		allow, known := allowed[path]
-		if !known {
-			if strings.HasPrefix(path, "/api/v1/players/") {
-				allow, known = "GET", true
-			} else if strings.HasPrefix(path, "/api/v1/companies/") {
-				allow, known = "GET", true
+func routePathMatches(pattern, path string) bool {
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(patternParts) != len(pathParts) {
+		return false
+	}
+	for i, part := range patternParts {
+		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") {
+			if pathParts[i] == "" {
+				return false
 			}
+			continue
 		}
-		if known && r.Method != allow {
-			w.Header().Set("Allow", allow)
+		if part != pathParts[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Server) methodGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		allowed := make([]string, 0, 2)
+		for _, route := range routeRegistry {
+			if !routePathMatches(route.Pattern, r.URL.Path) {
+				continue
+			}
+			if r.Method == route.Method {
+				next.ServeHTTP(w, r)
+				return
+			}
+			allowed = append(allowed, route.Method)
+		}
+		if len(allowed) > 0 {
+			w.Header().Set("Allow", strings.Join(allowed, ", "))
 			writeError(w, r, &APIError{Status: 405, Code: "route.method_not_allowed", Message: "method not allowed"})
 			return
 		}
