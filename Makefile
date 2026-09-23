@@ -1,6 +1,6 @@
 .PHONY: validate structure schemas systemd-check format-check test build security godot-check go-check rust-check admin-check
 
-validate: structure schemas wp006-migration wp007-migration wp008-migration systemd-check rust-check go-check admin-check
+validate: structure schemas wp006-migration wp007-migration wp008-migration wp009-openapi systemd-check rust-check go-check admin-check
 
 structure:
 	python3 tests/structural/check_repository.py
@@ -16,6 +16,9 @@ wp007-migration:
 
 wp008-migration:
 	python3 tests/structural/check_wp008_migration.py
+
+wp009-openapi:
+	python3 tests/structural/check_wp009_openapi.py
 
 systemd-check:
 	./ops/scripts/validate-systemd.sh
