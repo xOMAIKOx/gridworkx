@@ -1,81 +1,80 @@
 # WP-009 R13–R21 Engineering Handback
 
-**Repository:** `xOMAIKOx/gridworkx`
-**Branch:** `engineering/wp-009-go-api-foundation`
-**Existing PR:** #20
-**Exact required parent:** `f93c6526f9ce8743406606265456b283c8d8787c`
-**Implementation SHA:** `5e5ae36fcbf863ca9382f40115fa0b3653921691`
-**Current pre-handback head:** `5e5ae36fcbf863ca9382f40115fa0b3653921691`
+**Repository:** `xOMAIKOx/gridworkx`  
+**Branch:** `engineering/wp-009-go-api-foundation`  
+**Existing PR:** #20  
+**Exact required parent:** `f93c6526f9ce8743406606265456b283c8d8787c`  
+**Authorized source:** issue #19 Architecture comment `5792358224`  
 **Scope:** R13–R21 only
 
-## Correction
+The exact final implementation SHA and CI URLs are recorded in the GitHub issue/PR handback posted after the final branch gates complete.
 
-The current PR head already contained the accepted R13–R20 implementation. This bounded correction closes the remaining R21 request-ID logging safety gap.
+## Implemented corrections
 
-### R21 — deterministic safe request-ID reflection
+### R13 — company/group durable idempotency
 
-`validRequestID()` now accepts only:
+Company/group mutations use transaction-scoped PostgreSQL advisory locks derived from the company-domain namespace plus idempotency key before receipt lookup or durable entity mutation. The single WP-008 company receipt namespace remains authoritative. Repository tests execute real create/replay/conflict paths and assert lock/query/mutation ordering.
 
-- ASCII letters;
-- ASCII digits;
-- `.`, `_`, `:`, `-`;
-- maximum length 96;
-- non-empty values.
+### R14 — profile-update idempotency
 
-Printable values containing `=`, whitespace, newline, quotes, control characters or other delimiters are rejected and replaced with a server-generated safe request ID before reflection/logging.
+Profile updates use the identity-domain advisory-lock namespace before receipt lookup or profile mutation. Same-key/same-payload replay and contradictory reuse are exercised against the real repository method with transactional sqlmock expectations.
 
-Added regression evidence proving:
+### R15 — JSONB preferences
 
-- `safe.ID_123:part-value` is preserved;
-- `bad=value\nfield` is not reflected.
+Notification preferences persist through an explicit `$8::jsonb` SQL cast while nil retains no-change semantics. Repository tests assert the JSONB SQL shape.
 
-No authorization, persistence, API route, OpenAPI, provider, database or runtime architecture was changed.
+### R16 — stable 404/405
 
-## Changed implementation files
+HTTP route registration and method handling now derive from one Go route registry. Known paths with the wrong method return the stable JSON error envelope, HTTP 405 and `Allow`; unknown paths return JSON 404. Parameterized player/company paths use exact segment matching so extra path segments remain 404.
 
-- `services/api/internal/api/api.go`
-- `services/api/internal/api/api_test.go`
+### R17 — OpenAPI semantics and parity
 
-## Verification
+Pinned `github.com/getkin/kin-openapi v0.123.0` performs OpenAPI 3.1 semantic validation. The repository contract includes concrete success schemas/examples and stable error/security/idempotency metadata. The parity test compares OpenAPI paths/methods to the same Go route inventory used for handler registration.
 
-### Required WP-009 gates
+### R18 — acceptance test matrix
 
-```bash
-make validate
-make test
-make format-check
-make security
-make godot-check
-go test ./services/...
-go vet ./services/...
-```
+Added executable HTTP evidence for:
+- wrong-method 405 + `Allow` and unknown-route 404;
+- invalid media type, malformed JSON, trailing JSON and oversized body;
+- request-ID generation/preservation and panic-safe 500;
+- no wildcard CORS and no-store auth responses;
+- valid/invalid/expired/revoked/restricted account behavior;
+- replay-safe revoke followed by failed normal auth;
+- self/public/private profile behavior and public DTO leakage checks;
+- valid profile update, server-owned time, same-key replay, contradictory conflict, unknown fields and validation failures;
+- operating/holding company creation, system rejection, authenticated owner derivation, alternate-owner rejection, conflict mapping, company visibility, group creation and absence of raw ownership/provider-link routes.
 
-All passed.
+Added executable PostgreSQL-adapter evidence for:
+- begin/commit/rollback and advisory-lock ordering;
+- guest safe receipt persistence/replay and raw-token exclusion;
+- profile JSONB mutation/replay/conflict;
+- company/group server-derived owner creation/replay/conflict;
+- nullable public reads and representative SQLSTATE mapping;
+- parent-context cancellation.
 
-Highlights:
+Mocks do not claim to prove PostgreSQL trigger semantics; live PG18 remains a separate environment gate.
 
-- repository structure/content/schema/migration/OpenAPI checks: PASS;
-- Rust simulation tests: 47 passed;
-- Rust replay integration tests: 2 passed;
-- Go services tests: PASS;
-- Go vet: PASS;
-- admin typecheck/build/tests: PASS, 2 tests;
-- gitleaks: no leaks found;
-- forbidden-runtime scan: PASS;
-- ShellCheck: PASS;
-- Godot headless validation: PASS;
-- new request-ID regression: PASS.
+### R19 — CSPRNG rollback proof
 
-A fresh `npm ci --ignore-scripts` installed the committed lockfile dependencies in the isolated checkout. npm reported four existing dependency audit advisories; no dependency manifest or lockfile was changed.
+Repository entropy is injectable for tests and defaults to `crypto/rand.Reader` in production. Failure tests cover guest generation plus company/group entity, ownership and history-event generation stages and require rollback/no committed partial mutation.
+
+### R20 — testable runtime seam
+
+`services/api/internal/apiruntime` owns production HTTP server configuration and run/shutdown behavior. Tests prove:
+- default bind `127.0.0.1:18080`;
+- non-zero read/read-header/write/idle timeouts and header limit;
+- graceful shutdown without opening a public port;
+- non-`http.ErrServerClosed` serve failures propagate;
+- shutdown failures propagate.
+
+The main binary uses this seam with signal cancellation.
+
+### R21 — deterministic safe request-ID logging
+
+External request IDs are accepted only when non-empty, <=96 characters and composed of ASCII letters/digits plus `.`, `_`, `:`, `-`. Unsafe printable/control values are replaced by a server-generated ID before reflection/logging. Access logs do not contain Authorization headers, request bodies or DSNs.
 
 ## Scope compliance
 
-- No WP-010 or later-WP routes/services.
-- No live PostgreSQL contact or provisioning.
-- No host/database provisioning.
-- No deployment, port activation, reverse-proxy, systemd or runtime mutation.
-- No provider configuration or credentials.
-- No Docker/Podman/Compose/Kubernetes/OCI runtime.
-- No Parley collaboration.
+No WP-010 or later-WP route/service was added. No live PostgreSQL contact/provisioning, provider configuration, host mutation, deployment, port activation, reverse-proxy/systemd change or Docker/Podman/Compose/Kubernetes/OCI runtime work was performed.
 
-Engineering stops for Architecture review of exact implementation SHA `5e5ae36fcbf863ca9382f40115fa0b3653921691`.
+Engineering stops after the final GitHub handback for Architecture review.
