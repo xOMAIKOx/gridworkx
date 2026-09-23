@@ -56,7 +56,7 @@ func _run() -> void:
 	print("WP010 elapsed golden and repeat compared")
 
 	var batch_json = JSON.stringify(fixture["commands"])
-	var batched = bridge.execute_command_batch(created["result"]["snapshot"], batch_json)
+	var batched = bridge.execute_command_batch(advanced["result"]["snapshot"], batch_json)
 	if not check(batched.get("ok", false), "non-empty command batch failed"):
 		return
 	if not check(batched["result"]["digest"] == fixture["expected"]["after_command_digest"], "command batch digest diverged from committed golden"):
@@ -71,7 +71,7 @@ func _run() -> void:
 	if not expect_error(duplicate, "bridge.duplicate_command", "duplicate command batch"):
 		return
 	var failing_commands = [fixture["commands"][0], {"command_id": "wp010.bad", "command_type": "unsupported.command", "schema_version": "schema-0.1.0", "rules_version": "rules-0.1.0", "effective_time_ms": 5000, "idempotency_key": "wp010.bad.v1", "payload": {"adjust_register": {"delta": 1}}}]
-	var atomic_failure = bridge.execute_command_batch(created["result"]["snapshot"], JSON.stringify(failing_commands))
+	var atomic_failure = bridge.execute_command_batch(advanced["result"]["snapshot"], JSON.stringify(failing_commands))
 	if not expect_error(atomic_failure, "bridge.unsupported_command", "later command atomicity"):
 		return
 	print("WP010 duplicate and atomicity regressions compared")

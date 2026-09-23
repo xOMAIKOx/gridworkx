@@ -79,11 +79,7 @@ The shared fixture is:
 
 `tests/deterministic/fixtures/wp010/fixture.json`
 
-It pins seed `1234`, elapsed time `5000`, authoritative time `7500`, a non-empty adjust-register plus seeded-pulse command batch, event semantics and these accepted canonical digests:
-
-- after elapsed advance: `732fbdc2e38b55a1b64b5aa9d8a01c2747a20fe9c275c0e4eda537805b0a4c84`
-- after command batch: `5d3dbf4308f1d04ca235d9b82b85c11aadad7f1652966747a4a8eb3274b36161`
-- final authoritative-time state: `bab9c269e56f5ca05c438f958d54784012012eba8ad1c41d9caec6529c900c4c`
+It pins seed `1234`, elapsed time `5000`, authoritative time `7500`, a non-empty adjust-register plus seeded-pulse command batch, event semantics and the accepted canonical `after_elapsed_digest`, `after_command_digest` and `final_digest` values directly in the committed JSON fixture. The Rust test asserts those exact values; they are intentionally not duplicated in prose or evidence logs.
 
 The pure Rust fixture test asserts these committed values and writes ignored parity artifacts. Godot consumes the same committed fixture and compares snapshots, events and digests against those Rust artifacts and pinned values.
 
