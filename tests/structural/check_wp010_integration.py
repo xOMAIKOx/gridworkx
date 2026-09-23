@@ -35,7 +35,7 @@ build = (root / "ops/scripts/build-godot-extension.sh").read_text()
 if ".godot/extension_list.cfg" in build or "printf" in build:
     raise SystemExit("WP-010 build helper must not manufacture Godot extension-list project data")
 workflow = (root / ".github/workflows/ci.yml").read_text()
-if "xvfb-run -a" not in workflow or "--editor --path apps/game --quit-after 2 --rendering-method gl_compatibility" not in workflow:
+if "xvfb-run -a" not in workflow or "--editor --path apps/game --quit-after 2 --rendering-method gl_compatibility --rendering-driver opengl3" not in workflow:
     raise SystemExit("WP-010 CI is missing the CI-safe editor discovery scan")
 if "-eq 134" in workflow or "discovery_status" in workflow:
     raise SystemExit("WP-010 CI must not whitelist an editor discovery abort")
