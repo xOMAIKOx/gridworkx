@@ -102,7 +102,10 @@ validate("https://gridworks.example/schema/ledger-command.schema.json", validLed
 const validIdentityCommand = { mutation_type: "identity.guest_issue", idempotency_key: "identity.request.fixture" };
 validate("https://gridworks.example/schema/identity-command.schema.json", validIdentityCommand, "identity command fixture");
 validate("https://gridworks.example/schema/identity-public-profile.schema.json", { player_id: "player.fixture", handle: "fixture", display_name: "Fixture", locale: "en", visibility: "public", discoverable: true }, "public profile fixture");
-validate("https://gridworks.example/schema/company-command.schema.json", { mutation_type: "company.create", idempotency_key: "company.fixture", name: "Fixture Co", owner: { type: "system", id: "principal.gridworks.system" } }, "company command fixture");
+validate("https://gridworks.example/schema/company-command.schema.json", { mutation_type: "company.create", idempotency_key: "company.fixture", company_type: "operating", name: "Fixture Co", owner: { type: "system", id: "principal.gridworks.system" } }, "company command fixture");
+const malformedCompanyCommand = { mutation_type: "company.create", idempotency_key: "company.bad", company_type: "operating", name: "Fixture Co", owner: { type: "system", id: "principal.gridworks.system" }, company_id: "company.client-supplied" };
+const companyCommandCheck = ajv.getSchema("https://gridworks.example/schema/company-command.schema.json");
+if (!companyCommandCheck || companyCommandCheck(malformedCompanyCommand)) throw new Error("company command schema accepted caller-supplied authoritative company ID");
 validate("https://gridworks.example/schema/company-public-profile.schema.json", { company_id: "company.fixture", name: "Fixture Co", visibility: "public" }, "company public profile fixture");
 
 const configFiles = fs.readdirSync(path.join(contentRoot, "config")).filter((fileName) => fileName.endsWith(".json"));

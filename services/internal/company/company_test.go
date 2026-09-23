@@ -68,6 +68,36 @@ func TestOwnershipTransferAndGroupHistory(t *testing.T) {
 	}
 }
 
+func TestFullExitAndGroupDetachReassignHistory(t *testing.T) {
+	store := NewStore()
+	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
+	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Full Exit Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.full"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.TransferOwnership(OwnershipTransferRequest{CompanyID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 10_000, IdempotencyKey: "transfer.full"}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active := store.ActiveOwnership(company.CompanyID)
+	if len(active) != 1 || active[0].ShareBPS != 10_000 || active[0].Owner.ID != "player.two" {
+		t.Fatal("full exit created invalid active ownership")
+	}
+	g1, _ := store.CreateGroup(GroupCreateRequest{Name: "Group One", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "group.one"}, now)
+	g2, _ := store.CreateGroup(GroupCreateRequest{Name: "Group Two", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "group.two"}, now)
+	if err := store.AssignCompany(GroupAssignRequest{CompanyID: company.CompanyID, GroupID: g1.GroupID, IdempotencyKey: "assign.one"}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReassignCompany(GroupAssignRequest{CompanyID: company.CompanyID, GroupID: g2.GroupID, IdempotencyKey: "reassign.one"}, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DetachCompany(GroupAssignRequest{CompanyID: company.CompanyID, GroupID: g2.GroupID, IdempotencyKey: "detach.one"}, now.Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DetachCompany(GroupAssignRequest{CompanyID: company.CompanyID, GroupID: g2.GroupID, IdempotencyKey: "detach.one"}, now.Add(3*time.Hour)); err != nil {
+		t.Fatal("duplicate detach replay should be idempotent")
+	}
+}
+
 func TestSystemOwnershipReservedNamesAndGenerationFailure(t *testing.T) {
 	store := NewStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)

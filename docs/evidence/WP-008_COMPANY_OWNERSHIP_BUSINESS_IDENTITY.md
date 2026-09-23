@@ -33,3 +33,14 @@ Strict company state, mutation-command and public-company-profile schemas are re
 Go tests cover company creation/idempotency, exact initial ownership, transfer/history, insufficient share rejection, group assignment, system ownership, reserved names, generation failure and shared normalization behavior. Structural migration validation checks all required WP-008 tables/constraints and rejects destructive/provisioning SQL.
 
 No WP-009 API, acquisition/sale settlement, marketplace, real estate, JV/Consortium, money movement, ledger duplication, deployment, host/database provisioning or container runtime work was performed.
+
+## REQUEST_CHANGES remediation evidence
+
+- Ownership history no longer has global owner-tuple uniqueness; only active ownership projection is unique, allowing historical re-entry.
+- SQL ownership references are guarded for company/group existence, player principal existence and the explicit `principal.gridworks.system`; Go validates the same principal contract.
+- Ownership identity fields are frozen after creation, active totals lock the authoritative company/group row during deferred validation, and transfer mutations preserve exact `10000` basis points.
+- Full-share source exits omit zero-share active rows. Invalid principals and exact-total violations reject.
+- Added detach/reassign group mutations with idempotent replay, closed prior membership rows and exclusive active-parent behavior; SQL freezes membership identity fields.
+- Go and SQL share a durable company/group name-claim namespace and reserved policy. Company-create/group-create IDs are always server-generated.
+- Company commands are strict per-mutation schemas and reject caller-supplied create IDs or unrelated fields.
+- Ownership history is SQL append-only and structural validation asserts the guard.

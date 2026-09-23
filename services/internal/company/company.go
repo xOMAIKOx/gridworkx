@@ -96,7 +96,6 @@ type OwnershipEvent struct {
 	CreatedAt     time.Time
 }
 type CompanyCreateRequest struct {
-	CompanyID      string
 	CompanyType    CompanyType
 	Name           string
 	Owner          OwnerPrincipal
@@ -112,7 +111,6 @@ type OwnershipTransferRequest struct {
 	IdempotencyKey string
 }
 type GroupCreateRequest struct {
-	GroupID        string
 	Name           string
 	Owner          OwnerPrincipal
 	ActorPlayerID  string
@@ -175,13 +173,13 @@ func (s *Store) CreateCompany(req CompanyCreateRequest, now time.Time) (Company,
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		return Company{}, ErrInvalidIdempotency
 	}
-	if req.Owner.ID == "" || (req.Owner.Type != PlayerPrincipal && req.Owner.Type != SystemPrincipal) {
+	if !validOwner(req.Owner) {
 		return Company{}, ErrOwnerInvalid
 	}
 	if req.CompanyType != Holding && req.CompanyType != Operating && req.CompanyType != System {
 		return Company{}, ErrInvalidStatus
 	}
-	digest := requestDigest("company.create", req.CompanyID, string(req.CompanyType), req.Name, string(req.Owner.Type), req.Owner.ID)
+	digest := requestDigest("company.create", string(req.CompanyType), req.Name, string(req.Owner.Type), req.Owner.ID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if receipt, ok := s.receipts[req.IdempotencyKey]; ok {
@@ -203,10 +201,7 @@ func (s *Store) CreateCompany(req CompanyCreateRequest, now time.Time) (Company,
 	if _, ok := s.skeletons[name.Skeleton]; ok {
 		return Company{}, ErrNameUnavailable
 	}
-	id := req.CompanyID
-	if id == "" {
-		id, err = opaqueID(s.random, "company")
-	}
+	id, err := opaqueID(s.random, "company")
 	if err != nil {
 		return Company{}, err
 	}
@@ -235,10 +230,10 @@ func (s *Store) CreateGroup(req GroupCreateRequest, now time.Time) (CompanyGroup
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		return CompanyGroup{}, ErrInvalidIdempotency
 	}
-	if req.Owner.ID == "" || (req.Owner.Type != PlayerPrincipal && req.Owner.Type != SystemPrincipal) {
+	if !validOwner(req.Owner) {
 		return CompanyGroup{}, ErrOwnerInvalid
 	}
-	digest := requestDigest("group.create", req.GroupID, req.Name, string(req.Owner.Type), req.Owner.ID)
+	digest := requestDigest("group.create", req.Name, string(req.Owner.Type), req.Owner.ID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if r, ok := s.receipts[req.IdempotencyKey]; ok {
@@ -251,16 +246,16 @@ func (s *Store) CreateGroup(req GroupCreateRequest, now time.Time) (CompanyGroup
 	if err != nil {
 		return CompanyGroup{}, ErrNameInvalid
 	}
+	if _, ok := s.reserved[name.Skeleton]; ok {
+		return CompanyGroup{}, ErrNameReserved
+	}
 	if _, ok := s.names[name.Canonical]; ok {
 		return CompanyGroup{}, ErrNameUnavailable
 	}
 	if _, ok := s.skeletons[name.Skeleton]; ok {
 		return CompanyGroup{}, ErrNameUnavailable
 	}
-	id := req.GroupID
-	if id == "" {
-		id, err = opaqueID(s.random, "group")
-	}
+	id, err := opaqueID(s.random, "group")
 	if err != nil {
 		return CompanyGroup{}, err
 	}
@@ -289,8 +284,11 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		return ErrInvalidIdempotency
 	}
-	if req.From == req.To || req.ShareBPS == 0 || req.ShareBPS >= OwnershipBPS {
+	if req.From == req.To || req.ShareBPS == 0 || req.ShareBPS > OwnershipBPS {
 		return ErrInvalidShare
+	}
+	if !validOwner(req.From) || !validOwner(req.To) {
+		return ErrOwnerInvalid
 	}
 	digest := requestDigest("ownership.transfer", req.CompanyID, string(req.From.Type), req.From.ID, string(req.To.Type), req.To.ID, fmt.Sprint(req.ShareBPS))
 	s.mu.Lock()
@@ -349,7 +347,9 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 			s.ownerships[i].EffectiveTo = &now
 		}
 	}
-	s.ownerships = append(s.ownerships, Ownership{OwnershipID: sourceID, EntityID: req.CompanyID, Owner: req.From, ShareBPS: sourceShare - req.ShareBPS, Active: true, EffectiveFrom: now})
+	if sourceShare > req.ShareBPS {
+		s.ownerships = append(s.ownerships, Ownership{OwnershipID: sourceID, EntityID: req.CompanyID, Owner: req.From, ShareBPS: sourceShare - req.ShareBPS, Active: true, EffectiveFrom: now})
+	}
 	if targetExists {
 		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: req.CompanyID, Owner: req.To, ShareBPS: targetShare + req.ShareBPS, Active: true, EffectiveFrom: now})
 	} else {
@@ -397,6 +397,76 @@ func (s *Store) AssignCompany(req GroupAssignRequest, now time.Time) error {
 	return nil
 }
 
+func (s *Store) DetachCompany(req GroupAssignRequest, now time.Time) error {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		return ErrInvalidIdempotency
+	}
+	digest := requestDigest("group.detach", req.CompanyID, req.GroupID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if receipt, ok := s.receipts[req.IdempotencyKey]; ok {
+		if receipt.MutationType != "group.detach" || receipt.RequestDigest != digest {
+			return ErrIdempotencyConflict
+		}
+		return nil
+	}
+	if _, ok := s.companies[req.CompanyID]; !ok {
+		return ErrCompanyNotFound
+	}
+	if _, ok := s.groups[req.GroupID]; !ok {
+		return ErrGroupNotFound
+	}
+	for i := range s.memberships {
+		if s.memberships[i].CompanyID == req.CompanyID && s.memberships[i].Active {
+			if s.memberships[i].GroupID != req.GroupID {
+				return ErrGroupConflict
+			}
+			s.memberships[i].Active = false
+			s.memberships[i].EffectiveTo = &now
+			s.receipts[req.IdempotencyKey] = MutationReceipt{MutationType: "group.detach", RequestDigest: digest, ResultRef: s.memberships[i].MembershipID}
+			return nil
+		}
+	}
+	return ErrGroupConflict
+}
+
+func (s *Store) ReassignCompany(req GroupAssignRequest, now time.Time) error {
+	if strings.TrimSpace(req.IdempotencyKey) == "" {
+		return ErrInvalidIdempotency
+	}
+	digest := requestDigest("group.reassign", req.CompanyID, req.GroupID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if receipt, ok := s.receipts[req.IdempotencyKey]; ok {
+		if receipt.MutationType != "group.reassign" || receipt.RequestDigest != digest {
+			return ErrIdempotencyConflict
+		}
+		return nil
+	}
+	if _, ok := s.companies[req.CompanyID]; !ok {
+		return ErrCompanyNotFound
+	}
+	if _, ok := s.groups[req.GroupID]; !ok {
+		return ErrGroupNotFound
+	}
+	for i := range s.memberships {
+		if s.memberships[i].CompanyID == req.CompanyID && s.memberships[i].Active {
+			if s.memberships[i].GroupID == req.GroupID {
+				return ErrGroupConflict
+			}
+			s.memberships[i].Active = false
+			s.memberships[i].EffectiveTo = &now
+		}
+	}
+	id, err := opaqueID(s.random, "membership")
+	if err != nil {
+		return err
+	}
+	s.memberships = append(s.memberships, GroupMembership{MembershipID: id, CompanyID: req.CompanyID, GroupID: req.GroupID, Active: true, EffectiveFrom: now})
+	s.receipts[req.IdempotencyKey] = MutationReceipt{MutationType: "group.reassign", RequestDigest: digest, ResultRef: id}
+	return nil
+}
+
 func (s *Store) ActiveOwnership(entityID string) []Ownership {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -419,6 +489,16 @@ func (s *Store) History(entityID string) []OwnershipEvent {
 	}
 	return out
 }
+func validOwner(owner OwnerPrincipal) bool {
+	if owner.ID == "" {
+		return false
+	}
+	if owner.Type == SystemPrincipal {
+		return owner.ID == "principal.gridworks.system"
+	}
+	return owner.Type == PlayerPrincipal && strings.HasPrefix(owner.ID, "player.")
+}
+
 func normalizeCompanyName(value string) (identity.NormalizedHandle, error) {
 	display := strings.TrimSpace(value)
 	if display == "" {

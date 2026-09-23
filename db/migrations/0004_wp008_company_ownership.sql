@@ -33,6 +33,14 @@ CREATE TABLE IF NOT EXISTS gridworks.company_groups (
 CREATE UNIQUE INDEX IF NOT EXISTS company_groups_name_canonical_uq ON gridworks.company_groups(name_canonical);
 CREATE UNIQUE INDEX IF NOT EXISTS company_groups_name_skeleton_uq ON gridworks.company_groups(name_skeleton);
 
+CREATE TABLE IF NOT EXISTS gridworks.company_name_claims (
+    name_canonical text PRIMARY KEY,
+    name_skeleton text NOT NULL UNIQUE,
+    entity_id text NOT NULL,
+    entity_type text NOT NULL CHECK (entity_type IN ('company', 'group')),
+    claimed_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS gridworks.company_ownership (
     ownership_id text PRIMARY KEY,
     entity_id text NOT NULL,
@@ -43,7 +51,7 @@ CREATE TABLE IF NOT EXISTS gridworks.company_ownership (
     active boolean NOT NULL DEFAULT true,
     effective_from timestamptz NOT NULL,
     effective_to timestamptz,
-    UNIQUE (entity_id, entity_type, owner_type, owner_id) DEFERRABLE INITIALLY IMMEDIATE
+    UNIQUE (ownership_id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS company_ownership_active_owner_uq ON gridworks.company_ownership(entity_id, entity_type, owner_type, owner_id) WHERE active;
 CREATE INDEX IF NOT EXISTS company_ownership_entity_idx ON gridworks.company_ownership(entity_id, entity_type, active);
@@ -89,12 +97,158 @@ CREATE TABLE IF NOT EXISTS gridworks.reserved_company_names (
     active boolean NOT NULL DEFAULT true
 );
 
+INSERT INTO gridworks.reserved_company_names (name_skeleton, reason_code)
+VALUES ('gridworks', 'system'), ('official', 'system'), ('system', 'system'), ('admin', 'security'), ('administrator', 'security'), ('support', 'security'), ('moderator', 'security')
+ON CONFLICT (name_skeleton) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION gridworks.claim_company_name()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM gridworks.reserved_company_names WHERE name_skeleton = NEW.name_skeleton AND active) THEN
+        RAISE EXCEPTION 'company/group name is reserved';
+    END IF;
+    INSERT INTO gridworks.company_name_claims (name_canonical, name_skeleton, entity_id, entity_type)
+    VALUES (NEW.name_canonical, NEW.name_skeleton, NEW.company_id, 'company')
+    ON CONFLICT DO NOTHING;
+    IF NOT EXISTS (SELECT 1 FROM gridworks.company_name_claims WHERE name_canonical = NEW.name_canonical AND entity_id = NEW.company_id) THEN
+        RAISE EXCEPTION 'company/group name is unavailable';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS company_name_claim_guard ON gridworks.companies;
+CREATE TRIGGER company_name_claim_guard BEFORE INSERT ON gridworks.companies
+FOR EACH ROW EXECUTE FUNCTION gridworks.claim_company_name();
+
+CREATE OR REPLACE FUNCTION gridworks.claim_group_name()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM gridworks.reserved_company_names WHERE name_skeleton = NEW.name_skeleton AND active) THEN
+        RAISE EXCEPTION 'company/group name is reserved';
+    END IF;
+    INSERT INTO gridworks.company_name_claims (name_canonical, name_skeleton, entity_id, entity_type)
+    VALUES (NEW.name_canonical, NEW.name_skeleton, NEW.group_id, 'group')
+    ON CONFLICT DO NOTHING;
+    IF NOT EXISTS (SELECT 1 FROM gridworks.company_name_claims WHERE name_canonical = NEW.name_canonical AND entity_id = NEW.group_id) THEN
+        RAISE EXCEPTION 'company/group name is unavailable';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS company_group_name_claim_guard ON gridworks.company_groups;
+CREATE TRIGGER company_group_name_claim_guard BEFORE INSERT ON gridworks.company_groups
+FOR EACH ROW EXECUTE FUNCTION gridworks.claim_group_name();
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_company_history_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'company ownership history is append-only';
+END
+$$;
+
+DROP TRIGGER IF EXISTS ownership_history_append_only ON gridworks.ownership_history;
+CREATE TRIGGER ownership_history_append_only
+    BEFORE UPDATE OR DELETE ON gridworks.ownership_history
+    FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_company_history_mutation();
+
+CREATE OR REPLACE FUNCTION gridworks.freeze_company_group_membership_identity()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.company_id IS DISTINCT FROM OLD.company_id OR NEW.group_id IS DISTINCT FROM OLD.group_id THEN
+        RAISE EXCEPTION 'group membership identity is immutable';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS company_group_membership_identity_guard ON gridworks.company_group_membership;
+CREATE TRIGGER company_group_membership_identity_guard
+    BEFORE UPDATE ON gridworks.company_group_membership
+    FOR EACH ROW EXECUTE FUNCTION gridworks.freeze_company_group_membership_identity();
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_ownership_history_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'ownership history is append-only';
+END
+$$;
+
+DROP TRIGGER IF EXISTS ownership_history_append_only ON gridworks.ownership_history;
+CREATE TRIGGER ownership_history_append_only
+    BEFORE UPDATE OR DELETE ON gridworks.ownership_history
+    FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_ownership_history_mutation();
+
+CREATE OR REPLACE FUNCTION gridworks.freeze_group_membership_identity()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.company_id IS DISTINCT FROM OLD.company_id
+       OR NEW.group_id IS DISTINCT FROM OLD.group_id
+       OR NEW.source_ref IS DISTINCT FROM OLD.source_ref THEN
+        RAISE EXCEPTION 'group membership identity is immutable';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS company_group_membership_identity_guard ON gridworks.company_group_membership;
+CREATE TRIGGER company_group_membership_identity_guard
+    BEFORE UPDATE ON gridworks.company_group_membership
+    FOR EACH ROW EXECUTE FUNCTION gridworks.freeze_group_membership_identity();
+
+CREATE OR REPLACE FUNCTION gridworks.validate_company_ownership_refs()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.entity_type = 'company' AND NOT EXISTS (SELECT 1 FROM gridworks.companies WHERE company_id = NEW.entity_id) THEN
+        RAISE EXCEPTION 'ownership entity company does not exist';
+    END IF;
+    IF NEW.entity_type = 'group' AND NOT EXISTS (SELECT 1 FROM gridworks.company_groups WHERE group_id = NEW.entity_id) THEN
+        RAISE EXCEPTION 'ownership entity group does not exist';
+    END IF;
+    IF NEW.owner_type = 'player' AND NOT EXISTS (SELECT 1 FROM gridworks.players WHERE player_id = NEW.owner_id) THEN
+        RAISE EXCEPTION 'ownership player principal does not exist';
+    END IF;
+    IF NEW.owner_type = 'system' AND NEW.owner_id <> 'principal.gridworks.system' THEN
+        RAISE EXCEPTION 'unknown system ownership principal';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS company_ownership_reference_guard ON gridworks.company_ownership;
+CREATE TRIGGER company_ownership_reference_guard
+    BEFORE INSERT OR UPDATE ON gridworks.company_ownership
+    FOR EACH ROW EXECUTE FUNCTION gridworks.validate_company_ownership_refs();
+
+CREATE OR REPLACE FUNCTION gridworks.freeze_company_ownership_identity()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.entity_id IS DISTINCT FROM OLD.entity_id OR NEW.entity_type IS DISTINCT FROM OLD.entity_type
+       OR NEW.owner_type IS DISTINCT FROM OLD.owner_type OR NEW.owner_id IS DISTINCT FROM OLD.owner_id
+       OR NEW.share_bps IS DISTINCT FROM OLD.share_bps THEN
+        RAISE EXCEPTION 'ownership identity is immutable; append a new projection row';
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+DROP TRIGGER IF EXISTS company_ownership_identity_guard ON gridworks.company_ownership;
+CREATE TRIGGER company_ownership_identity_guard
+    BEFORE UPDATE ON gridworks.company_ownership
+    FOR EACH ROW EXECUTE FUNCTION gridworks.freeze_company_ownership_identity();
+
 CREATE OR REPLACE FUNCTION gridworks.validate_active_ownership_total()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE target_entity text; target_type text; total_bps bigint;
 BEGIN
     target_entity := COALESCE(NEW.entity_id, OLD.entity_id);
     target_type := COALESCE(NEW.entity_type, OLD.entity_type);
+    IF target_type = 'company' THEN
+        PERFORM 1 FROM gridworks.companies WHERE company_id = target_entity FOR UPDATE;
+    ELSE
+        PERFORM 1 FROM gridworks.company_groups WHERE group_id = target_entity FOR UPDATE;
+    END IF;
     SELECT COALESCE(sum(share_bps), 0) INTO total_bps FROM gridworks.company_ownership WHERE entity_id = target_entity AND entity_type = target_type AND active;
     IF total_bps <> 10000 THEN RAISE EXCEPTION 'active ownership must total exactly 10000 basis points'; END IF;
     IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
