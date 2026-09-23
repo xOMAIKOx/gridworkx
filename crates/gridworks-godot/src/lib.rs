@@ -1,3 +1,5 @@
+#![allow(elided_lifetimes_in_associated_constant)]
+
 use godot::prelude::*;
 use gridworks_sim::{
     advance, aggregate_plant_fixture, execute, Command, KernelError, SimulationState,
