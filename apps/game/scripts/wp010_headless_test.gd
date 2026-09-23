@@ -57,7 +57,7 @@ func _run() -> void:
 
 	var batch_json = JSON.stringify(fixture["commands"])
 	var batched = bridge.execute_command_batch(advanced["result"]["snapshot"], batch_json)
-	if not check(batched.get("ok", false), "non-empty command batch failed"):
+	if not check(batched.get("ok", false), "non-empty command batch failed: " + JSON.stringify(batched)):
 		return
 	if not check(batched["result"]["digest"] == fixture["expected"]["after_command_digest"], "command batch digest diverged from committed golden"):
 		return
