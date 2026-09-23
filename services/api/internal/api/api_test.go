@@ -168,3 +168,23 @@ func TestRoutingReturnsStable404And405(t *testing.T) {
 		t.Fatalf("wrong method status/allow=%d/%s", w.Code, w.Header().Get("Allow"))
 	}
 }
+
+func TestRequestIDReflectionUsesNarrowSafeAlphabet(t *testing.T) {
+	h := NewServer(&fakeRepo{}, "test").Mux()
+
+	r := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	r.Header.Set("X-Request-ID", "safe.ID_123:part-value")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if got := w.Header().Get("X-Request-ID"); got != "safe.ID_123:part-value" {
+		t.Fatalf("safe request ID was not preserved: %q", got)
+	}
+
+	r = httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	r.Header.Set("X-Request-ID", "bad=value\nfield")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if got := w.Header().Get("X-Request-ID"); got == "bad=value\nfield" || got == "" {
+		t.Fatalf("unsafe request ID was reflected: %q", got)
+	}
+}

@@ -216,7 +216,10 @@ func validRequestID(v string) bool {
 		return false
 	}
 	for _, r := range v {
-		if r < 0x21 || r > 0x7e {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		if r != '.' && r != '_' && r != ':' && r != '-' {
 			return false
 		}
 	}
