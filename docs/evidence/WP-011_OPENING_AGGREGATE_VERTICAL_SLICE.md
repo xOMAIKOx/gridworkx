@@ -68,15 +68,37 @@ Committed expected values in the WP-011 fixture:
 
 Restart creates a fresh canonical scenario and restores the initial digest; it does not rewind a used snapshot. Bridge unavailable/error states are explicit and non-authoritative; no mock/fake simulation fallback exists.
 
+## R2 onboarding contract evidence
+
+- Presentation states: `opening.intro`, `opening.inspect`, `opening.diagnose`, `opening.intervene`, `opening.produce`, `opening.complete`.
+- Diagnosis candidates: motor bearing seizure, worn belt and screen blockage; selection issues canonical `FailureCommand::Diagnose`.
+- Initial presentation hides raw fault types/instances; evidence and diagnosis are shown only after canonical actions.
+- Feed, output conveyor, crusher and screen all have selected-component inspection actions.
+- Wrong output-belt repair remains available after evidence and leaves capacity at zero; feed repair then yields capacity three.
+- Completion requires resolved feed seizure, positive facility capacity, a successful canonical production event with accepted runs greater than zero and finished aggregate greater than zero.
+- Raw feed, limestone, finished aggregate and last accepted runs are displayed from canonical snapshot/event state.
+- Restart resets the canonical snapshot digest and presentation-only production state; failed bridge responses preserve the last valid snapshot.
+- Advisor text changes by canonical-derived presentation state and can be dismissed.
+
+## Visual evidence
+
+Rendered from the real Godot opening scene/controller through the CI Xvfb capture path:
+
+- `docs/evidence/wp-011/opening-portrait-390x844.png` — 390×844 opening state.
+- `docs/evidence/wp-011/opening-wide-1440x900.png` — 1440×900 opening state.
+- `docs/evidence/wp-011/inspected-feed-390x844.png` — selected inspected component/evidence state.
+- `docs/evidence/wp-011/partial-recovery-390x844.png` — post-critical-repair partial throughput state.
+- `docs/evidence/wp-011/first-output-390x844.png` — first canonical output state.
+
 ## Verification
 
 Existing WP-010 native build/import/extension-list/runtime parity gates remain mandatory. WP-011 adds:
 
 - Rust scenario and golden test;
 - `apps/game/scenes/wp011_test.tscn` headless controller/bridge golden test;
+- controller-level onboarding contract assertions;
 - structural integration checks;
+- Xvfb-rendered PNG capture and native `file` dimension checks;
 - CI execution after the existing WP-010 runtime parity gate.
-
-Visual evidence paths are generated during the Godot presentation review from `opening_aggregate.tscn`; no raw recording is committed.
 
 No WP-012+ systems or host/deployment/provider/database/port/systemd/container work occurred.
