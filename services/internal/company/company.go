@@ -555,6 +555,10 @@ func (s *Store) hasOwner(owner OwnerPrincipal) bool {
 	return s.playerResolver != nil && s.playerResolver.PlayerExists(owner.ID)
 }
 
+func NormalizeBusinessName(value string) (identity.NormalizedHandle, error) {
+	return normalizeCompanyName(value)
+}
+
 func normalizeCompanyName(value string) (identity.NormalizedHandle, error) {
 	display := strings.TrimSpace(value)
 	if len([]rune(display)) < 3 || len([]rune(display)) > 80 {
