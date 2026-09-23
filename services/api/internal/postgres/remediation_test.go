@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"encoding/json"
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -243,6 +243,21 @@ func TestCompanyAndGroupEntropyFailuresRollback(t *testing.T) {
 	now := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
 	p := api.Principal{PlayerID: "player.one"}
 
+	t.Run("company entity id failure", func(t *testing.T) {
+		repo, mock, closeFn := newMockRepository(t, &stepEntropy{failAt: 1})
+		defer closeFn()
+		mock.ExpectBegin()
+		mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("company\x00company.entity.fail").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery("SELECT mutation_type,request_digest,result_ref FROM gridworks.company_mutation_receipts").WithArgs("company.entity.fail").WillReturnError(sql.ErrNoRows)
+		mock.ExpectRollback()
+		if _, err := repo.CreateCompany(context.Background(), p, "company.entity.fail", api.CompanyCreateRequest{CompanyType: "operating", Name: "Acme"}, now); err == nil {
+			t.Fatal("expected company entity entropy failure")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("company ownership id failure", func(t *testing.T) {
 		repo, mock, closeFn := newMockRepository(t, &stepEntropy{failAt: 2})
 		defer closeFn()
@@ -253,6 +268,21 @@ func TestCompanyAndGroupEntropyFailuresRollback(t *testing.T) {
 		mock.ExpectRollback()
 		if _, err := repo.CreateCompany(context.Background(), p, "company.fail", api.CompanyCreateRequest{CompanyType: "operating", Name: "Acme"}, now); err == nil {
 			t.Fatal("expected company entropy failure")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("group entity id failure", func(t *testing.T) {
+		repo, mock, closeFn := newMockRepository(t, &stepEntropy{failAt: 1})
+		defer closeFn()
+		mock.ExpectBegin()
+		mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("company\x00group.entity.fail").WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectQuery("SELECT mutation_type,request_digest,result_ref FROM gridworks.company_mutation_receipts").WithArgs("group.entity.fail").WillReturnError(sql.ErrNoRows)
+		mock.ExpectRollback()
+		if _, err := repo.CreateGroup(context.Background(), p, "group.entity.fail", api.GroupCreateRequest{Name: "Holding"}, now); err == nil {
+			t.Fatal("expected group entity entropy failure")
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatal(err)
