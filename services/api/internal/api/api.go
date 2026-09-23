@@ -8,9 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
+
+	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
 )
 
 const MaxJSONBody = 1 << 20
@@ -26,6 +31,7 @@ type GuestResult struct {
 	PlayerID        string
 	SessionID       string
 	ExpiresAt       time.Time
+	Profile         json.RawMessage
 	RawSessionToken string
 	Replay          bool
 }
@@ -90,6 +96,9 @@ type errorBody struct {
 	Timestamp string `json:"timestamp"`
 }
 
+type RevocationRepository interface {
+	RevokePresentedSession(context.Context, string, time.Time) error
+}
 type IdentityRepository interface {
 	IssueGuest(context.Context, string, time.Time) (GuestResult, error)
 	Authenticate(context.Context, string, time.Time) (Principal, error)
@@ -147,7 +156,26 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("POST /api/v1/companies", s.createCompany)
 	mux.HandleFunc("GET /api/v1/companies/{company_id}", s.company)
 	mux.HandleFunc("POST /api/v1/company-groups", s.createGroup)
+	mux.HandleFunc("/", s.notFound)
 	return s.middleware(mux)
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w *statusWriter) Write(p []byte) (int, error) {
+	if w.status == 0 {
+		w.status = 200
+	}
+	return w.ResponseWriter.Write(p)
 }
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,14 +184,17 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			requestID = newRequestID()
 		}
 		ctx := context.WithValue(r.Context(), requestIDKey{}, requestID)
-		w.Header().Set("X-Request-ID", requestID)
-		w.Header().Set("X-Content-Type-Options", "nosniff")
+		sw := &statusWriter{ResponseWriter: w}
+		sw.Header().Set("X-Request-ID", requestID)
+		sw.Header().Set("X-Content-Type-Options", "nosniff")
+		start := time.Now()
 		defer func() {
 			if recover() != nil {
-				writeError(w, r, &APIError{Status: 500, Code: "internal.panic", Message: "internal server error"})
+				writeError(sw, r, &APIError{Status: 500, Code: "internal.panic", Message: "internal server error"})
 			}
+			log.Printf("api_request request_id=%s method=%s path=%s status=%d duration_ms=%d", requestID, r.Method, r.URL.Path, sw.status, time.Since(start).Milliseconds())
 		}()
-		next.ServeHTTP(w, r.WithContext(ctx))
+		next.ServeHTTP(sw, r.WithContext(ctx))
 	})
 }
 
@@ -194,6 +225,10 @@ func (s *Server) now() time.Time {
 	}
 	return time.Now().UTC()
 }
+func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
+	writeError(w, r, &APIError{Status: http.StatusNotFound, Code: "route.not_found", Message: "route not found"})
+}
+
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok", "role": "gridworks-api"}, false)
 }
@@ -210,7 +245,8 @@ func (s *Server) version(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"api_version": "v1", "version": s.Version}, false)
 }
 func requireJSON(r *http.Request) error {
-	if !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
+	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || strings.ToLower(media) != "application/json" {
 		return &APIError{Status: 415, Code: "request.unsupported_media_type", Message: "application/json is required"}
 	}
 	return nil
@@ -278,7 +314,7 @@ func (s *Server) principal(r *http.Request) (Principal, string, error) {
 		return Principal{}, "", err
 	}
 	p, err := s.Repo.Authenticate(r.Context(), token, s.now())
-	if err != nil {
+	if err != nil || (p.Status != "guest" && p.Status != "protected") {
 		return Principal{}, "", ErrUnauthorized
 	}
 	return p, token, nil
@@ -300,16 +336,31 @@ func (s *Server) guest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, mapError(err))
 		return
 	}
-	writeJSON(w, 200, map[string]any{"account_id": result.AccountID, "player_id": result.PlayerID, "session_id": result.SessionID, "expires_at": result.ExpiresAt, "session_token": result.RawSessionToken, "replay": result.Replay}, true)
+	response := map[string]any{"account_id": result.AccountID, "player_id": result.PlayerID, "session_id": result.SessionID, "expires_at": result.ExpiresAt, "profile": json.RawMessage(result.Profile), "replay": result.Replay}
+	if result.Replay {
+		response["credential_unavailable"] = true
+	} else {
+		response["session_token"] = result.RawSessionToken
+	}
+	writeJSON(w, 200, response, true)
 }
 func (s *Server) revoke(w http.ResponseWriter, r *http.Request) {
-	p, _, err := s.principal(r)
+	token, err := bearer(r)
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
-	token, _ := bearer(r)
-	if err := s.Repo.RevokeSession(r.Context(), p, s.now()); err != nil {
+	if revoker, ok := s.Repo.(RevocationRepository); ok {
+		err = revoker.RevokePresentedSession(r.Context(), token, s.now())
+	} else {
+		p, _, authErr := s.principal(r)
+		if authErr != nil {
+			writeError(w, r, authErr)
+			return
+		}
+		err = s.Repo.RevokeSession(r.Context(), p, s.now())
+	}
+	if err != nil {
 		writeError(w, r, mapError(err))
 		return
 	}
@@ -342,6 +393,10 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	var patch ProfilePatch
 	if err := decodeJSON(w, r, &patch, s.MaxBody); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	if err := validateProfilePatch(patch); err != nil {
 		writeError(w, r, err)
 		return
 	}
@@ -418,6 +473,41 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, v, true)
 }
+func validateProfilePatch(p ProfilePatch) error {
+	if p.DisplayName == nil && p.Bio == nil && p.Locale == nil && p.Timezone == nil && p.Visibility == nil && p.DMPolicy == nil && p.Discoverable == nil && p.NotificationPreferences == nil {
+		return &APIError{Status: 400, Code: "profile.empty_patch", Message: "profile patch is empty"}
+	}
+	if p.DisplayName != nil && !identity.ValidateDisplayName(*p.DisplayName) {
+		return &APIError{Status: 422, Code: "profile.invalid_display_name", Message: "display name is invalid"}
+	}
+	if p.Bio != nil {
+		if len([]rune(*p.Bio)) > 1000 {
+			return &APIError{Status: 422, Code: "profile.invalid_bio", Message: "bio is too long"}
+		}
+		for _, r := range *p.Bio {
+			if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+				return &APIError{Status: 422, Code: "profile.invalid_bio", Message: "bio contains forbidden characters"}
+			}
+		}
+	}
+	if p.Locale != nil && !identity.ValidateLocale(*p.Locale) {
+		return &APIError{Status: 422, Code: "profile.invalid_locale", Message: "locale is invalid"}
+	}
+	if p.Timezone != nil && !identity.ValidateTimezone(*p.Timezone) {
+		return &APIError{Status: 422, Code: "profile.invalid_timezone", Message: "timezone is invalid"}
+	}
+	if p.Visibility != nil && *p.Visibility != "public" && *p.Visibility != "private" {
+		return &APIError{Status: 422, Code: "profile.invalid_visibility", Message: "visibility is invalid"}
+	}
+	if p.DMPolicy != nil && *p.DMPolicy != "everyone" && *p.DMPolicy != "nobody" {
+		return &APIError{Status: 422, Code: "profile.invalid_dm_policy", Message: "DM policy is invalid"}
+	}
+	if p.NotificationPreferences != nil && len(p.NotificationPreferences) > 32 {
+		return &APIError{Status: 422, Code: "profile.invalid_notifications", Message: "notification preferences are invalid"}
+	}
+	return nil
+}
+
 func mapError(err error) error {
 	if err == nil {
 		return nil

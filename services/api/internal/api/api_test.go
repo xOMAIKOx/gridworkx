@@ -31,6 +31,10 @@ func (f *fakeRepo) RevokeSession(_ context.Context, _ Principal, _ time.Time) er
 	f.revoked = true
 	return nil
 }
+func (f *fakeRepo) RevokePresentedSession(context.Context, string, time.Time) error {
+	f.revoked = true
+	return nil
+}
 func (f *fakeRepo) GetMe(_ context.Context, _ Principal) (MeView, error) {
 	return MeView{AccountID: "account.one", PlayerID: "player.one", Status: "guest", Profile: json.RawMessage(`{"display_name":"Guest"}`)}, nil
 }
@@ -107,5 +111,44 @@ func TestUnauthorizedAndHealthRoutes(t *testing.T) {
 	h.ServeHTTP(w, r)
 	if w.Code != 401 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestRestrictedStatusAndRevokeReplay(t *testing.T) {
+	repo := &fakeRepo{principal: Principal{AccountID: "account.one", PlayerID: "player.one", SessionID: "session.one", Status: "suspended"}}
+	h := NewServer(repo, "test").Mux()
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	r.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("restricted status=%d", w.Code)
+	}
+	repo.principal.Status = "guest"
+	for i := 0; i < 2; i++ {
+		r = httptest.NewRequest(http.MethodDelete, "/api/v1/auth/session", nil)
+		r.Header.Set("Authorization", "Bearer valid-token")
+		w = httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusNoContent {
+			t.Fatalf("revoke replay status=%d", w.Code)
+		}
+	}
+}
+
+func TestProfilePatchValidation(t *testing.T) {
+	repo := &fakeRepo{principal: Principal{AccountID: "account.one", PlayerID: "player.one", SessionID: "session.one", Status: "guest"}}
+	h := NewServer(repo, "test").Mux()
+	cases := []string{`{}`, `{"bio":"` + strings.Repeat("x", 1001) + `"}`, `{"visibility":"hidden"}`, `{"dm_policy":"maybe"}`}
+	for _, body := range cases {
+		r := httptest.NewRequest(http.MethodPatch, "/api/v1/me/profile", strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer valid-token")
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Idempotency-Key", "profile.validation")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusBadRequest && w.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("profile validation status=%d body=%s", w.Code, w.Body.String())
+		}
 	}
 }

@@ -37,3 +37,9 @@ No migration was added or modified. No live PostgreSQL provisioning or execution
 ## Scope and limitations
 
 Provider linking is intentionally not public. Profile handle/avatar/auth changes, raw ownership transfer, group governance, realtime, workers, simulation, acquisition, marketplace, finance, admin and later-WP routes are not implemented. No host, database, role, service, port, reverse-proxy, provider or container runtime mutation occurred.
+
+## REQUEST_CHANGES remediation evidence
+
+R1–R12 remediation extends the API foundation with JSON-safe guest receipt references and explicit durable replay credential-unavailable semantics; transactional company/group receipt claim/replay using accepted WP-008 digest inputs; propagated CSPRNG errors; SQLSTATE/constraint-aware safe error mapping; centralized profile validation and JSONB preference encoding; restricted account-state authentication; replay-safe current-session revoke; nullable public DTO handling; shared WP-008 name normalization; bounded DB-pool/server hardening; OpenAPI schema/operation validation; and expanded HTTP/adapter regression evidence.
+
+The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provider, host, reverse-proxy, deployment, port or container runtime action occurred.

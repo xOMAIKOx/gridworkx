@@ -28,7 +28,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer repo.Close()
-	server := &http.Server{Addr: *address, Handler: api.NewServer(repo, "0.1.0").Mux(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: *address, Handler: api.NewServer(repo, "0.1.0").Mux(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(stop)
