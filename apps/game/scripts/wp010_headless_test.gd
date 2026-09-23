@@ -116,31 +116,21 @@ func _run() -> void:
 		return
 	print("WP010 supplied-state facility regressions compared")
 
-	var unknown_field_snapshot = JSON.parse_string(created["result"]["snapshot"])
-	unknown_field_snapshot["unknown_field"] = true
-	if not expect_error(bridge.digest_snapshot(JSON.stringify(unknown_field_snapshot)), "bridge.invalid_json", "snapshot unknown field"):
+	var created_snapshot_text: String = created["result"]["snapshot"]
+	var unknown_field_snapshot = created_snapshot_text.substr(0, created_snapshot_text.length() - 1) + ",\"unknown_field\":true}"
+	if not expect_error(bridge.digest_snapshot(unknown_field_snapshot), "bridge.invalid_json", "snapshot unknown field"):
 		return
-	var unsupported_snapshot = JSON.parse_string(created["result"]["snapshot"])
-	unsupported_snapshot["schema_version"] = "schema-unsupported"
-	unsupported_snapshot["state"]["schema_version"] = "schema-unsupported"
-	var unsupported_schema_result = bridge.digest_snapshot(JSON.stringify(unsupported_snapshot))
-	if not check(not unsupported_schema_result.get("ok", true), "unsupported schema unexpectedly succeeded"):
+	var unsupported_schema_snapshot = created_snapshot_text.replace("\"schema_version\":\"schema-0.1.0\"", "\"schema_version\":\"schema-unsupported\"")
+	if not expect_error(bridge.digest_snapshot(unsupported_schema_snapshot), "bridge.version_mismatch", "unsupported schema"):
 		return
-	if not check(unsupported_schema_result.get("error", {}).get("code", "") == "bridge.version_mismatch", "unsupported schema returned the wrong error code: " + JSON.stringify(unsupported_schema_result)):
+	var invalid_rng_snapshot = created_snapshot_text.replace("\"algorithm\":\"xorshift64star-v1\"", "\"algorithm\":\"rng-unsupported\"")
+	if not expect_error(bridge.digest_snapshot(invalid_rng_snapshot), "bridge.invalid_rng", "invalid RNG state"):
 		return
-	var invalid_rng_snapshot = JSON.parse_string(created["result"]["snapshot"])
-	invalid_rng_snapshot["state"]["rng"]["algorithm"] = "rng-unsupported"
-	if not expect_error(bridge.digest_snapshot(JSON.stringify(invalid_rng_snapshot)), "bridge.invalid_rng", "invalid RNG state"):
+	var unsupported_rules_snapshot = created_snapshot_text.replace("\"rules_version\":\"rules-0.1.0\"", "\"rules_version\":\"rules-unsupported\"")
+	if not expect_error(bridge.digest_snapshot(unsupported_rules_snapshot), "bridge.version_mismatch", "unsupported rules"):
 		return
-	var unsupported_rules_snapshot = JSON.parse_string(created["result"]["snapshot"])
-	unsupported_rules_snapshot["rules_version"] = "rules-unsupported"
-	unsupported_rules_snapshot["state"]["rules_version"] = "rules-unsupported"
-	if not expect_error(bridge.digest_snapshot(JSON.stringify(unsupported_rules_snapshot)), "bridge.version_mismatch", "unsupported rules"):
-		return
-	var unsupported_kernel_snapshot = JSON.parse_string(created["result"]["snapshot"])
-	unsupported_kernel_snapshot["kernel_revision"] = "kernel-unsupported"
-	unsupported_kernel_snapshot["state"]["kernel_revision"] = "kernel-unsupported"
-	if not expect_error(bridge.digest_snapshot(JSON.stringify(unsupported_kernel_snapshot)), "bridge.invalid_state", "unsupported kernel"):
+	var unsupported_kernel_snapshot = created_snapshot_text.replace("\"kernel_revision\":\"kernel-0.2.0\"", "\"kernel_revision\":\"kernel-unsupported\"")
+	if not expect_error(bridge.digest_snapshot(unsupported_kernel_snapshot), "bridge.invalid_state", "unsupported kernel"):
 		return
 	if not expect_error(bridge.digest_snapshot("x".repeat(4 * 1024 * 1024 + 1)), "bridge.payload_too_large", "oversized snapshot"):
 		return
