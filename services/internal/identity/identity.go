@@ -254,6 +254,16 @@ func (s *InMemoryStore) LinkExternal(idempotencyKey string, sessionToken string,
 	s.accounts[account.AccountID] = account
 	return link, nil
 }
+func (s *InMemoryStore) PlayerExists(playerID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, player := range s.players {
+		if player.PlayerID == playerID {
+			return true
+		}
+	}
+	return false
+}
 func (s *InMemoryStore) RevokeSession(token string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

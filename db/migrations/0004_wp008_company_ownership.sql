@@ -158,24 +158,34 @@ CREATE TRIGGER ownership_history_append_only
 CREATE OR REPLACE FUNCTION gridworks.freeze_group_membership_identity()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.company_id IS DISTINCT FROM OLD.company_id
-       OR NEW.group_id IS DISTINCT FROM OLD.group_id
-       OR NEW.source_ref IS DISTINCT FROM OLD.source_ref THEN
+    IF NEW.membership_id IS DISTINCT FROM OLD.membership_id OR NEW.company_id IS DISTINCT FROM OLD.company_id
+       OR NEW.group_id IS DISTINCT FROM OLD.group_id OR NEW.source_ref IS DISTINCT FROM OLD.source_ref
+       OR NEW.effective_from IS DISTINCT FROM OLD.effective_from THEN
         RAISE EXCEPTION 'group membership identity is immutable';
+    END IF;
+    IF OLD.active = false THEN
+        IF NEW.active IS DISTINCT FROM OLD.active OR NEW.effective_to IS DISTINCT FROM OLD.effective_to THEN
+            RAISE EXCEPTION 'closed group membership is immutable';
+        END IF;
+    ELSIF NEW.active = true OR OLD.effective_to IS NOT NULL OR NEW.effective_to IS NULL THEN
+        IF NEW.active IS DISTINCT FROM OLD.active OR NEW.effective_to IS DISTINCT FROM OLD.effective_to THEN
+            RAISE EXCEPTION 'group membership may only close once';
+        END IF;
     END IF;
     RETURN NEW;
 END
 $$;
-
 DROP TRIGGER IF EXISTS company_group_membership_identity_guard ON gridworks.company_group_membership;
-CREATE TRIGGER company_group_membership_identity_guard
-    BEFORE UPDATE ON gridworks.company_group_membership
-    FOR EACH ROW EXECUTE FUNCTION gridworks.freeze_group_membership_identity();
+CREATE TRIGGER company_group_membership_identity_guard BEFORE UPDATE ON gridworks.company_group_membership FOR EACH ROW EXECUTE FUNCTION gridworks.freeze_group_membership_identity();
+CREATE OR REPLACE FUNCTION gridworks.prevent_group_membership_delete()
+RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'group membership history is append-close only'; END $$;
+DROP TRIGGER IF EXISTS company_group_membership_delete_guard ON gridworks.company_group_membership;
+CREATE TRIGGER company_group_membership_delete_guard BEFORE DELETE ON gridworks.company_group_membership FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_group_membership_delete();
 
 CREATE OR REPLACE FUNCTION gridworks.prevent_company_name_rewrite()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.name_canonical IS DISTINCT FROM OLD.name_canonical OR NEW.name_skeleton IS DISTINCT FROM OLD.name_skeleton THEN
+    IF NEW.name_display IS DISTINCT FROM OLD.name_display OR NEW.name_canonical IS DISTINCT FROM OLD.name_canonical OR NEW.name_skeleton IS DISTINCT FROM OLD.name_skeleton THEN
         RAISE EXCEPTION 'company/group name identity is immutable';
     END IF;
     RETURN NEW;
@@ -250,6 +260,11 @@ END
 $$;
 DROP TRIGGER IF EXISTS company_ownership_identity_guard ON gridworks.company_ownership;
 CREATE TRIGGER company_ownership_identity_guard BEFORE UPDATE ON gridworks.company_ownership FOR EACH ROW EXECUTE FUNCTION gridworks.freeze_company_ownership_identity();
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_company_ownership_delete()
+RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'ownership projections are append-close only'; END $$;
+DROP TRIGGER IF EXISTS company_ownership_delete_guard ON gridworks.company_ownership;
+CREATE TRIGGER company_ownership_delete_guard BEFORE DELETE ON gridworks.company_ownership FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_company_ownership_delete();
 
 CREATE OR REPLACE FUNCTION gridworks.validate_active_ownership_total()
 RETURNS trigger LANGUAGE plpgsql AS $$

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
 )
@@ -103,7 +104,6 @@ type CompanyCreateRequest struct {
 	IdempotencyKey string
 }
 type OwnershipTransferRequest struct {
-	CompanyID      string
 	EntityType     string
 	EntityID       string
 	From           OwnerPrincipal
@@ -152,24 +152,30 @@ const (
 	ErrCycle               CompanyError = "company group cycle is invalid"
 )
 
+type PlayerResolver interface{ PlayerExists(playerID string) bool }
+type PlayerResolverFunc func(playerID string) bool
+
+func (f PlayerResolverFunc) PlayerExists(playerID string) bool { return f(playerID) }
+
 type Store struct {
-	mu          sync.Mutex
-	random      io.Reader
-	companies   map[string]Company
-	groups      map[string]CompanyGroup
-	ownerships  []Ownership
-	memberships []GroupMembership
-	history     []OwnershipEvent
-	receipts    map[string]MutationReceipt
-	names       map[string]string
-	skeletons   map[string]string
-	reserved    map[string]struct{}
-	players     map[string]struct{}
+	mu             sync.Mutex
+	random         io.Reader
+	companies      map[string]Company
+	groups         map[string]CompanyGroup
+	ownerships     []Ownership
+	memberships    []GroupMembership
+	history        []OwnershipEvent
+	receipts       map[string]MutationReceipt
+	names          map[string]string
+	skeletons      map[string]string
+	reserved       map[string]struct{}
+	playerResolver PlayerResolver
 }
 
-func NewStore() *Store { return NewStoreWithRandom(rand.Reader) }
-func NewStoreWithRandom(random io.Reader) *Store {
-	return &Store{random: random, companies: map[string]Company{}, groups: map[string]CompanyGroup{}, receipts: map[string]MutationReceipt{}, names: map[string]string{}, skeletons: map[string]string{}, players: map[string]struct{}{}, reserved: map[string]struct{}{"gridworks": {}, "official": {}, "system": {}, "admin": {}, "administrator": {}, "support": {}, "moderator": {}}}
+func NewStore() *Store                           { return NewStoreWithResolver(rand.Reader, nil) }
+func NewStoreWithRandom(random io.Reader) *Store { return NewStoreWithResolver(random, nil) }
+func NewStoreWithResolver(random io.Reader, resolver PlayerResolver) *Store {
+	return &Store{random: random, playerResolver: resolver, companies: map[string]Company{}, groups: map[string]CompanyGroup{}, receipts: map[string]MutationReceipt{}, names: map[string]string{}, skeletons: map[string]string{}, reserved: map[string]struct{}{"gridworks": {}, "official": {}, "system": {}, "admin": {}, "administrator": {}, "support": {}, "moderator": {}}}
 }
 
 func (s *Store) CreateCompany(req CompanyCreateRequest, now time.Time) (Company, error) {
@@ -301,10 +307,6 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 	}
 	entityType := req.EntityType
 	entityID := req.EntityID
-	if entityType == "" {
-		entityType = "company"
-		entityID = req.CompanyID
-	}
 	if entityID == "" || (entityType != "company" && entityType != "group") {
 		return ErrCompanyNotFound
 	}
@@ -348,19 +350,43 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 	if source == nil || source.ShareBPS < req.ShareBPS {
 		return ErrInsufficientShare
 	}
+	current := make([]Ownership, 0)
+	for _, ownership := range s.ownerships {
+		if ownership.EntityID == entityID && ownership.Active {
+			current = append(current, ownership)
+		}
+	}
 	sourceShare := source.ShareBPS
 	targetExists := target != nil
-	targetShare := uint16(0)
+	targetShare := uint32(0)
 	if targetExists {
-		targetShare = target.ShareBPS
+		targetShare = uint32(target.ShareBPS)
 	}
-	sourceID, err := opaqueID(s.random, "ownership")
-	if err != nil {
-		return err
+	staged := make([]Ownership, 0, len(current)+1)
+	for _, ownership := range current {
+		share := uint32(ownership.ShareBPS)
+		if ownership.Owner == req.From {
+			share -= uint32(req.ShareBPS)
+		}
+		if ownership.Owner == req.To {
+			share += uint32(req.ShareBPS)
+		}
+		if share > 0 {
+			staged = append(staged, Ownership{EntityID: entityID, Owner: ownership.Owner, ShareBPS: uint16(share), Active: true, EffectiveFrom: now})
+		}
 	}
-	targetID, err := opaqueID(s.random, "ownership")
-	if err != nil {
-		return err
+	if !targetExists {
+		staged = append(staged, Ownership{EntityID: entityID, Owner: req.To, ShareBPS: req.ShareBPS, Active: true, EffectiveFrom: now})
+	}
+	if sourceShare < req.ShareBPS || targetShare+uint32(req.ShareBPS) > uint32(OwnershipBPS) {
+		return ErrOwnershipTotal
+	}
+	var err error
+	for i := range staged {
+		staged[i].OwnershipID, err = opaqueID(s.random, "ownership")
+		if err != nil {
+			return err
+		}
 	}
 	eventID, err := opaqueID(s.random, "ownership-event")
 	if err != nil {
@@ -372,14 +398,7 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 			s.ownerships[i].EffectiveTo = &now
 		}
 	}
-	if sourceShare > req.ShareBPS {
-		s.ownerships = append(s.ownerships, Ownership{OwnershipID: sourceID, EntityID: entityID, Owner: req.From, ShareBPS: sourceShare - req.ShareBPS, Active: true, EffectiveFrom: now})
-	}
-	if targetExists {
-		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: entityID, Owner: req.To, ShareBPS: targetShare + req.ShareBPS, Active: true, EffectiveFrom: now})
-	} else {
-		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: entityID, Owner: req.To, ShareBPS: req.ShareBPS, Active: true, EffectiveFrom: now})
-	}
+	s.ownerships = append(s.ownerships, staged...)
 	s.history = append(s.history, OwnershipEvent{EventID: eventID, EntityID: entityID, MutationType: "ownership.transfer", FromOwner: &req.From, ToOwner: &req.To, ShareBPS: req.ShareBPS, EffectiveTime: now, SourceRef: req.IdempotencyKey, ActorPlayerID: req.ActorPlayerID, CreatedAt: now})
 	s.receipts[req.IdempotencyKey] = MutationReceipt{MutationType: "ownership.transfer", RequestDigest: digest, ResultRef: entityID}
 	return nil
@@ -533,19 +552,18 @@ func (s *Store) hasOwner(owner OwnerPrincipal) bool {
 	if owner.Type == SystemPrincipal {
 		return owner.ID == "principal.gridworks.system"
 	}
-	_, ok := s.players[owner.ID]
-	return ok
-}
-func (s *Store) RegisterPlayer(playerID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.players[playerID] = struct{}{}
+	return s.playerResolver != nil && s.playerResolver.PlayerExists(owner.ID)
 }
 
 func normalizeCompanyName(value string) (identity.NormalizedHandle, error) {
 	display := strings.TrimSpace(value)
-	if display == "" {
+	if len([]rune(display)) < 3 || len([]rune(display)) > 80 {
 		return identity.NormalizedHandle{}, ErrNameInvalid
+	}
+	for _, r := range display {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return identity.NormalizedHandle{}, ErrNameInvalid
+		}
 	}
 	// Company display names may contain spaces; canonical policy shares WP-007 semantics by using its normalized handle key.
 	key := strings.Join(strings.Fields(display), "-")

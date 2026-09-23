@@ -52,3 +52,10 @@ No WP-009 API, acquisition/sale settlement, marketplace, real estate, JV/Consort
 - Shared company/group name claims are append-only and name identity fields are frozen because rename is out of scope. Company-specific names use the shared normalization algorithm with a consistent 3–80 policy and reserved baseline.
 - Player owner resolution uses an explicit in-memory/repository player registry seam rather than accepting syntactically plausible IDs alone; system ownership remains the exact GRIDWORKS principal.
 - Ownership transfer accepts typed company or group entity references and applies the same exact-share/idempotency/history rules to both.
+
+## R15–R18 remediation evidence
+
+- Ownership and membership SQL projections now reject DELETE and allow only one-way close; identity/effective-start fields are frozen and closed rows cannot be rewritten.
+- Company/group display, canonical and skeleton name identity is fully frozen; Go validates the display value itself at 3–80 runes before canonical whitespace normalization, matching SQL and schemas.
+- Company ownership consumes an injected `PlayerResolver` interface; the company domain no longer registers or mints player validity. The WP-007 identity repository exposes the resolver contract.
+- The legacy company-only ownership transfer path is removed. Typed `entity_type` + `entity_id` is required for all ownership transfers, with group partial/full/replay/conflict/invalid-entity regressions.

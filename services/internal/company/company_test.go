@@ -1,17 +1,23 @@
 package company
 
 import (
+	"crypto/rand"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
 )
 
+func fixtureResolver() PlayerResolver {
+	known := map[string]struct{}{"player.one": {}, "player.two": {}}
+	return PlayerResolverFunc(func(playerID string) bool { _, ok := known[playerID]; return ok })
+}
+func testStore() *Store { return NewStoreWithResolver(rand.Reader, fixtureResolver()) }
+
 func TestCompanyCreationOwnershipAndIdempotency(t *testing.T) {
-	store := NewStore()
-	store.RegisterPlayer("player.one")
-	store.RegisterPlayer("player.two")
+	store := testStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	req := CompanyCreateRequest{CompanyType: Operating, Name: "Acme Works", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.create.one"}
 	company, err := store.CreateCompany(req, now)
@@ -35,18 +41,16 @@ func TestCompanyCreationOwnershipAndIdempotency(t *testing.T) {
 }
 
 func TestOwnershipTransferAndGroupHistory(t *testing.T) {
-	store := NewStore()
-	store.RegisterPlayer("player.one")
-	store.RegisterPlayer("player.two")
+	store := testStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Operating One", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.one"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TransferOwnership(OwnershipTransferRequest{CompanyID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2500, IdempotencyKey: "transfer.one"}, now.Add(time.Minute)); err != nil {
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "company", EntityID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2500, IdempotencyKey: "transfer.one"}, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TransferOwnership(OwnershipTransferRequest{CompanyID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2500, IdempotencyKey: "transfer.one"}, now.Add(time.Hour)); err != nil {
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "company", EntityID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2500, IdempotencyKey: "transfer.one"}, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	active := store.ActiveOwnership(company.CompanyID)
@@ -57,7 +61,7 @@ func TestOwnershipTransferAndGroupHistory(t *testing.T) {
 	if total != OwnershipBPS || len(store.History(company.CompanyID)) != 2 {
 		t.Fatal("ownership transfer did not preserve exact total/history")
 	}
-	if err := store.TransferOwnership(OwnershipTransferRequest{CompanyID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 7501, IdempotencyKey: "transfer.two"}, now.Add(2*time.Hour)); err != ErrInsufficientShare {
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "company", EntityID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 7501, IdempotencyKey: "transfer.two"}, now.Add(2*time.Hour)); err != ErrInsufficientShare {
 		t.Fatal("insufficient ownership was not rejected")
 	}
 	group, err := store.CreateGroup(GroupCreateRequest{Name: "Acme Group", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "group.one"}, now)
@@ -73,15 +77,13 @@ func TestOwnershipTransferAndGroupHistory(t *testing.T) {
 }
 
 func TestFullExitAndGroupDetachReassignHistory(t *testing.T) {
-	store := NewStore()
-	store.RegisterPlayer("player.one")
-	store.RegisterPlayer("player.two")
+	store := testStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Full Exit Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.full"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.TransferOwnership(OwnershipTransferRequest{CompanyID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 10_000, IdempotencyKey: "transfer.full"}, now.Add(time.Minute)); err != nil {
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "company", EntityID: company.CompanyID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 10_000, IdempotencyKey: "transfer.full"}, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	active := store.ActiveOwnership(company.CompanyID)
@@ -105,9 +107,7 @@ func TestFullExitAndGroupDetachReassignHistory(t *testing.T) {
 }
 
 func TestSystemOwnershipReservedNamesAndGenerationFailure(t *testing.T) {
-	store := NewStore()
-	store.RegisterPlayer("player.one")
-	store.RegisterPlayer("player.two")
+	store := testStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: System, Name: "Gridworks Treasury", Owner: OwnerPrincipal{Type: SystemPrincipal, ID: "principal.gridworks.system"}, IdempotencyKey: "system.one"}, now)
 	if err != nil || len(store.ActiveOwnership(company.CompanyID)) != 1 {
@@ -117,7 +117,7 @@ func TestSystemOwnershipReservedNamesAndGenerationFailure(t *testing.T) {
 	if err != ErrNameReserved {
 		t.Fatal("reserved company name was not rejected")
 	}
-	failing := NewStoreWithRandom(failingReader{})
+	failing := NewStoreWithResolver(failingReader{}, fixtureResolver())
 	if _, err := failing.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Failure Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "failure.one"}, now); err == nil || len(failing.companies) != 0 || len(failing.ownerships) != 0 {
 		t.Fatal("generation failure mutated company state")
 	}
@@ -126,6 +126,19 @@ func TestSystemOwnershipReservedNamesAndGenerationFailure(t *testing.T) {
 type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+func TestCompanyNameDisplayBoundsAreIndependentFromCanonicalKey(t *testing.T) {
+	store := testStore()
+	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
+	longName := "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+	if _, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: longName, Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "long-name"}, now); err != nil {
+		t.Fatal("valid >32-rune company name rejected", err)
+	}
+	overlong := strings.Repeat("a ", 41)
+	if _, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: overlong, Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "overlong-name"}, now); err != ErrNameInvalid {
+		t.Fatal("over-80 display name was accepted after whitespace collapse")
+	}
+}
 
 func TestCompanyProfileUsesSharedIdentityNormalization(t *testing.T) {
 	first, err := identity.NormalizeHandle("Café")
@@ -139,9 +152,7 @@ func TestCompanyProfileUsesSharedIdentityNormalization(t *testing.T) {
 }
 
 func TestGroupOwnershipTransferAndPlayerResolution(t *testing.T) {
-	store := NewStore()
-	store.RegisterPlayer("player.one")
-	store.RegisterPlayer("player.two")
+	store := testStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	group, err := store.CreateGroup(GroupCreateRequest{Name: "Transfer Group", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "group.transfer"}, now)
 	if err != nil {
@@ -149,6 +160,18 @@ func TestGroupOwnershipTransferAndPlayerResolution(t *testing.T) {
 	}
 	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "group", EntityID: group.GroupID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2_000, IdempotencyKey: "group.transfer.ownership"}, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
+	}
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "group", EntityID: group.GroupID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2_000, IdempotencyKey: "group.transfer.ownership"}, now.Add(2*time.Minute)); err != nil {
+		t.Fatal("group transfer replay failed")
+	}
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "group", EntityID: group.GroupID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: SystemPrincipal, ID: "principal.gridworks.system"}, ShareBPS: 2_000, IdempotencyKey: "group.transfer.ownership"}, now.Add(3*time.Minute)); err != ErrIdempotencyConflict {
+		t.Fatal("group contradictory idempotency was accepted")
+	}
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "group", EntityID: group.GroupID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: SystemPrincipal, ID: "principal.gridworks.system"}, ShareBPS: 8_000, IdempotencyKey: "group.transfer.full"}, now.Add(4*time.Minute)); err != nil {
+		t.Fatal("group full exit failed")
+	}
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "group", EntityID: "group.missing", From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: SystemPrincipal, ID: "principal.gridworks.system"}, ShareBPS: 1, IdempotencyKey: "group.invalid"}, now.Add(5*time.Minute)); err != ErrGroupNotFound {
+		t.Fatal("invalid group entity was accepted")
 	}
 	active := store.ActiveOwnership(group.GroupID)
 	total := uint16(0)
@@ -164,8 +187,7 @@ func TestGroupOwnershipTransferAndPlayerResolution(t *testing.T) {
 }
 
 func TestReassignFailureDoesNotCloseExistingMembership(t *testing.T) {
-	store := NewStore()
-	store.RegisterPlayer("player.one")
+	store := testStore()
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, _ := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Atomic Reassign Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "atomic.company"}, now)
 	groupA, _ := store.CreateGroup(GroupCreateRequest{Name: "Atomic Group A", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "atomic.group.a"}, now)
