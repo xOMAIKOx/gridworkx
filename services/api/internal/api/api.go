@@ -204,6 +204,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			requestID = newRequestID()
 		}
 		ctx := context.WithValue(r.Context(), requestIDKey{}, requestID)
+		r = r.WithContext(ctx)
 		sw := &statusWriter{ResponseWriter: w}
 		sw.Header().Set("X-Request-ID", requestID)
 		sw.Header().Set("X-Content-Type-Options", "nosniff")
@@ -214,7 +215,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			}
 			log.Printf("api_request request_id=%s method=%s path=%s status=%d duration_ms=%d", requestID, r.Method, r.URL.Path, sw.status, time.Since(start).Milliseconds())
 		}()
-		next.ServeHTTP(sw, r.WithContext(ctx))
+		next.ServeHTTP(sw, r)
 	})
 }
 
