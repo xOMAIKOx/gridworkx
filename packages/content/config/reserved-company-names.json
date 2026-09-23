@@ -1,0 +1,5 @@
+{
+  "config_id": "company.reserved_names",
+  "version": "1.0.0",
+  "names": ["gridworks", "official", "system", "admin", "administrator", "support", "moderator"]
+}

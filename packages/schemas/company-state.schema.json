@@ -1,0 +1,16 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://gridworks.example/schema/company-state.schema.json",
+  "title":"GRIDWORKS company ownership state",
+  "type":"object",
+  "required":["company","ownership"],
+  "properties":{"company":{"$ref":"#/$defs/company"},"ownership":{"type":"array","items":{"$ref":"#/$defs/ownership"}},"public_profile":{"$ref":"#/$defs/publicProfile"}},
+  "additionalProperties":false,
+  "$defs":{
+    "id":{"type":"string","pattern":"^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$","minLength":3,"maxLength":160},
+    "principal":{"type":"object","required":["type","id"],"properties":{"type":{"enum":["player","system"]},"id":{"$ref":"#/$defs/id"}},"additionalProperties":false},
+    "company":{"type":"object","required":["company_id","type","name","name_canonical","name_skeleton","status","visibility","created_at","updated_at"],"properties":{"company_id":{"$ref":"#/$defs/id"},"type":{"enum":["holding","operating","system"]},"name":{"type":"string","minLength":3,"maxLength":80},"name_canonical":{"type":"string","minLength":3,"maxLength":160},"name_skeleton":{"type":"string","minLength":3,"maxLength":160},"status":{"enum":["active","suspended","archived"]},"visibility":{"enum":["public","private"]},"description":{"type":"string","maxLength":1000},"logo_asset_id":{"type":"string"},"industry_id":{"$ref":"#/$defs/id"},"headquarters_region_id":{"$ref":"#/$defs/id"},"created_at":{"type":"string","format":"date-time"},"updated_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "ownership":{"type":"object","required":["ownership_id","entity_id","owner","share_bps","active","effective_from"],"properties":{"ownership_id":{"$ref":"#/$defs/id"},"entity_id":{"$ref":"#/$defs/id"},"owner":{"$ref":"#/$defs/principal"},"share_bps":{"type":"integer","minimum":1,"maximum":10000},"active":{"type":"boolean"},"effective_from":{"type":"string","format":"date-time"},"effective_to":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}]}},"additionalProperties":false},
+    "publicProfile":{"type":"object","required":["company_id","name","visibility"],"properties":{"company_id":{"$ref":"#/$defs/id"},"name":{"type":"string","minLength":3,"maxLength":80},"logo_asset_id":{"type":"string"},"industry_id":{"$ref":"#/$defs/id"},"headquarters_region_id":{"$ref":"#/$defs/id"},"visibility":{"enum":["public","private"]},"description":{"type":"string","maxLength":1000}},"additionalProperties":false}
+  }
+}

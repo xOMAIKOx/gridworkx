@@ -26,6 +26,9 @@ for (const fileName of [
   "identity-state.schema.json",
   "identity-command.schema.json",
   "identity-public-profile.schema.json",
+  "company-state.schema.json",
+  "company-command.schema.json",
+  "company-public-profile.schema.json",
   "simulation-state.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
@@ -99,6 +102,8 @@ validate("https://gridworks.example/schema/ledger-command.schema.json", validLed
 const validIdentityCommand = { mutation_type: "identity.guest_issue", idempotency_key: "identity.request.fixture" };
 validate("https://gridworks.example/schema/identity-command.schema.json", validIdentityCommand, "identity command fixture");
 validate("https://gridworks.example/schema/identity-public-profile.schema.json", { player_id: "player.fixture", handle: "fixture", display_name: "Fixture", locale: "en", visibility: "public", discoverable: true }, "public profile fixture");
+validate("https://gridworks.example/schema/company-command.schema.json", { mutation_type: "company.create", idempotency_key: "company.fixture", name: "Fixture Co", owner: { type: "system", id: "principal.gridworks.system" } }, "company command fixture");
+validate("https://gridworks.example/schema/company-public-profile.schema.json", { company_id: "company.fixture", name: "Fixture Co", visibility: "public" }, "company public profile fixture");
 
 const configFiles = fs.readdirSync(path.join(contentRoot, "config")).filter((fileName) => fileName.endsWith(".json"));
 const semanticKeys = new Set(["config_id", "policy_id", "policy_version", "manifest_id", "principal_id", "system_principal", "layer_id", "mode_id", "asset_id", "catalogue_id"]);
