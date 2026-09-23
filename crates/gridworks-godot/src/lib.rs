@@ -265,12 +265,12 @@ impl GridworksSimBridge {
             validate_facility_id(&facility_id)?;
             let state = state_from_json(&snapshot.to_string())?;
             let evaluation = state.evaluate_facility(&facility_id).map_err(map_error)?;
-            Ok(serde_json::to_value(evaluation).map_err(|_| {
+            serde_json::to_value(evaluation).map_err(|_| {
                 error(
                     "bridge.internal",
                     "facility evaluation could not be encoded",
                 )
-            })?)
+            })
         })
     }
 }
