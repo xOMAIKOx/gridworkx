@@ -45,6 +45,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install headless editor display support
+        run: sudo apt-get update && sudo apt-get install -y xvfb
       - name: Install pinned Godot editor
         run: |
           archive=Godot_v4.7.2-stable_linux.x86_64.zip
@@ -64,7 +66,7 @@ jobs:
         env:
           RUST_BACKTRACE: "1"
         run: |
-          timeout 30s "$HOME/.local/bin/godot" --headless --editor --path apps/game --quit --audio-driver Dummy
+          timeout 30s xvfb-run -a "$HOME/.local/bin/godot" --editor --path apps/game --quit --audio-driver Dummy
           test -f apps/game/.godot/extension_list.cfg
           test "$(grep -cFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg)" -eq 1
           test "$(grep -vFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg | sed '/^[[:space:]]*$/d' | wc -l)" -eq 0
