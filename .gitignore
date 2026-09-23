@@ -36,3 +36,5 @@ coverage/
 *.sqlite
 *.sqlite3
 *.db
+
+apps/game/bin/

@@ -23,8 +23,8 @@ jobs:
           cache: false
       - name: Select the repository Rust toolchain
         run: |
-          rustup toolchain install 1.75.0 --profile minimal --component rustfmt,clippy
-          rustup default 1.75.0
+          rustup toolchain install 1.80.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.80.0
       - name: Install native validation tools
         run: sudo apt-get update && sudo apt-get install -y gitleaks shellcheck sqlite3
       - name: Install JavaScript dependencies
@@ -54,5 +54,13 @@ jobs:
           unzip -q "$archive"
           mkdir -p "$HOME/.local/bin"
           install -m 0755 Godot_v4.7.2-stable_linux.x86_64 "$HOME/.local/bin/godot"
+      - name: Select the repository Rust toolchain
+        run: |
+          rustup toolchain install 1.80.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.80.0
+      - name: Build and stage Godot extension
+        run: ./ops/scripts/build-godot-extension.sh
       - name: Parse the Godot project headlessly
         run: "$HOME/.local/bin/godot --headless --path apps/game --editor --quit --audio-driver Dummy"
+      - name: Run WP-010 deterministic Godot parity test
+        run: "$HOME/.local/bin/godot --headless --path apps/game --script res://scripts/wp010_headless_test.gd --audio-driver Dummy"
