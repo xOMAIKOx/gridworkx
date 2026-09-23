@@ -61,6 +61,8 @@ jobs:
       - name: Build and stage Godot extension
         run: ./ops/scripts/build-godot-extension.sh
       - name: Parse the Godot project headlessly
-        run: "$HOME/.local/bin/godot --headless --path apps/game --editor --quit --audio-driver Dummy"
+        env:
+          RUST_BACKTRACE: "1"
+        run: "$HOME/.local/bin/godot --headless --verbose --path apps/game --editor --quit --audio-driver Dummy"
       - name: Run WP-010 deterministic Godot parity test
         run: "$HOME/.local/bin/godot --headless --path apps/game --script res://scripts/wp010_headless_test.gd --audio-driver Dummy"
