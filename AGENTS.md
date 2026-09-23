@@ -1,87 +1,87 @@
 # GRIDWORKS Agent Operating Contract
 
-This repository uses GitHub as the authoritative collaboration channel between Architecture and Engineering.
+This repository uses GitHub as the authoritative collaboration channel between the Owner, Technical Authority and Engineering.
+
+Controlling collaboration references:
+
+1. `AI_AGENT_COLLABORATION_PROTOCOL.md` — GRIDWORKS role/authority rules.
+2. `docs/GITHUB_COLLABORATION_TRANSPORT.md` — normative GitHub-first transport and handback protocol.
+3. `docs/work-orders/**` — work-package architecture and acceptance contracts.
+4. Active WP issue + draft PR — current execution/review ledger.
 
 ## Roles
 
-### Architecture
-Owns:
-- product/architecture decisions;
-- ADRs;
-- work orders;
-- acceptance criteria;
-- review outcomes;
-- REQUEST_CHANGES/PASS/HOLD decisions.
+### Owner
+
+Owns product/business intent, explicit GO boundaries, merge/deployment authorization and material decisions. The Owner is not a technical message relay.
+
+### Technical Authority
+
+GPT-5.6 Sol/Pro unless the Owner explicitly assigns another authority.
+
+Owns architecture, scope, worker routing, implementation directives, acceptance criteria, review findings and PASS / REQUEST_CHANGES / HOLD-BLOCKED decisions.
 
 ### Engineering
-Owns:
-- implementation strictly within an authorized work package;
-- evidence;
-- tests;
-- documented deviations/blockers;
-- GitHub handback.
 
-Engineering does not redefine accepted architecture in code.
+Devin is the persistent engineering/orchestration agent.
 
-## Collaboration channel
+Devin owns repository execution, invokes the worker model selected by the Technical Authority, runs verification, commits evidence and produces the structured Engineering handback.
 
-For each work package:
-- the GitHub issue is the coordination/control thread;
-- the draft PR is the implementation/evidence thread;
-- Architecture instructions are posted in GitHub;
-- Engineering questions, blockers and handbacks are posted in GitHub;
-- the owner is given only a concise summary and is not used as a manual relay for long prompts.
+The worker model executes inside Devin's lane and does not replace Devin or the Technical Authority.
 
-If Architecture asks Engineering to perform work, the detailed instruction must live in GitHub.
+## GitHub-first collaboration
 
-If Engineering completes or blocks work, the detailed handback must live in GitHub.
+For each WP:
 
-## Owner interaction
+- substantial Technical Authority instructions live in a durable repository Markdown directive whenever practical;
+- the WP issue / draft PR carry concise control receipts pointing to the directive;
+- the execution route must name Devin, the exact worker model/effort and implementation class;
+- Engineering questions/blockers return to GitHub, not through the Owner;
+- the complete Engineering handback is committed as a durable Markdown document;
+- the issue/PR receive concise handback pointers only;
+- the Owner receives a concise status/decision request, never a long agent-to-agent packet.
 
-The owner may authorize, stop, narrow or redirect work.
-
-Do not require the owner to paste Architecture prompts into an Engineering chat or paste Engineering handbacks back to Architecture.
-
-A concise owner-facing message should say only what happened and where the authoritative GitHub record is.
+Do not ask the Owner to copy/paste Architecture prompts to Engineering or Engineering handbacks back to Architecture.
 
 ## Work-package discipline
 
-Before starting any WP:
-1. read the controlling work order;
-2. read the referenced design/ADR documents;
-3. verify the exact required parent commit;
-4. verify scope and host authorization;
-5. post/confirm any prerequisite receipt required by the WP;
-6. only then implement.
+Before starting or resuming work:
 
-If blocked by an architecture conflict:
-- stop that decision path;
-- post evidence in the WP issue/PR;
-- request Architecture direction;
-- do not invent a replacement architecture.
+1. read the controlling directive/work order;
+2. verify the exact branch, parent/current HEAD and draft PR;
+3. verify the selected worker model/effort;
+4. verify authorized/prohibited scope;
+5. verify host/deployment authorization independently from repository authorization;
+6. stop if the actual baseline materially differs from the directive.
+
+Engineering must not silently rebase, change worker model/effort, redesign architecture, weaken a legitimate gate, merge, or start the next WP.
 
 ## Runtime policy
 
-No Docker, Podman, Compose, Kubernetes or OCI runtime dependencies are permitted on Cortex estate hosts, including ERIS.
+No Docker, Podman, Compose, Kubernetes, OCI, containerd or nerdctl on Cortex estate hosts, including ERIS.
 
-Native Linux/systemd is the target runtime.
+Native Linux/systemd is the estate runtime.
 
-Any host work must be explicitly authorized by the controlling WP.
+Repository authorization does not imply host/deployment authorization.
 
-## Engineering handback minimum
+## Mandatory Engineering handback
 
-Every handback must include:
-- WP identifier;
-- branch;
-- exact parent SHA;
-- exact HEAD SHA;
-- files changed;
-- commands/tests executed;
-- results;
-- evidence paths;
-- host changes made, if authorized;
-- known deviations;
-- unresolved risks/blockers;
-- explicit scope-compliance statement.
+Every review submission must include a committed handback document containing:
 
-After handback, stop unless the current WP explicitly authorizes another step.
+- work package and directive reference;
+- execution agent: Devin;
+- actual worker model + effort;
+- implementation class;
+- repository/branch;
+- controlling parent/current baseline;
+- implementation/remediation commit(s);
+- exact final HEAD;
+- changed files/components;
+- verification commands/results;
+- acceptance-criteria mapping;
+- deviations/assumptions;
+- blockers/risks;
+- environment/host/database/network/deployment mutation status;
+- final state: `READY FOR SOL/PRO REVIEW`, `BLOCKED` or `STOP`.
+
+After handback, Engineering stops.

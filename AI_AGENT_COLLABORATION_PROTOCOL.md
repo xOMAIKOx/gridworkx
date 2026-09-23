@@ -1,75 +1,121 @@
-# GRIDWORKS GitHub Collaboration Protocol
+# GRIDWORKS AI Agent Collaboration Protocol
 
-## Purpose
+**Status:** Normative project protocol
 
-Keep Architecture ↔ Engineering collaboration in GitHub so the owner does not have to relay long prompts or handbacks through chat.
+GRIDWORKS follows the Cortex governed development model:
 
-## Authoritative locations
+```text
+OWNER
+  -> TECHNICAL AUTHORITY (GPT-5.6 Sol/Pro)
+  -> DEVIN (Engineering/orchestration)
+  -> selected worker model
+  -> DEVIN verification + durable handback
+  -> TECHNICAL AUTHORITY independent review
+  -> OWNER only when a decision/GO is required
+```
 
-For a work package such as WP-001:
+The detailed transport rules are normative in:
 
-1. **Work order**
-   - `docs/work-orders/<WP>.md`
-   - durable specification and acceptance contract.
+`docs/GITHUB_COLLABORATION_TRANSPORT.md`
 
-2. **GitHub issue**
-   - current coordination thread;
-   - Architecture instructions/clarifications;
-   - Engineering prerequisite receipts;
-   - blockers;
-   - short status records;
-   - final handback reference.
+## 1. Authority
 
-3. **Draft pull request**
-   - implementation diff;
-   - test/evidence details;
-   - review findings;
-   - Architecture acceptance or REQUEST_CHANGES.
+### Owner
 
-## Architecture → Engineering
+Controls:
+- product/business intent;
+- priority;
+- explicit repository GO boundaries;
+- merge authorization;
+- host/deployment/production GO boundaries;
+- material exceptions/decisions.
 
-Architecture posts detailed instructions directly in the relevant issue/PR.
+### Technical Authority
 
-Owner-facing summary should be short, for example:
+Controls:
+- requirements interpretation;
+- architecture/security/data-integrity invariants;
+- WP decomposition and scope;
+- acceptance criteria;
+- exact Engineering directive;
+- worker-model/effort selection;
+- independent review;
+- PASS / REQUEST_CHANGES / HOLD-BLOCKED / STOP verdict.
 
-> WP-001 instruction is on GitHub issue #1. Engineering should read the work order and issue, execute only the authorized scope, and hand back in GitHub.
+### Devin
 
-The owner should not need to copy the full instruction.
+Devin is the persistent Engineering/IDE orchestration agent.
 
-## Engineering → Architecture
+Devin:
+- verifies repository/baseline state;
+- uses the exact worker model/effort selected by Architecture;
+- executes only the authorized scope;
+- runs mandatory verification;
+- commits implementation/evidence/handback;
+- reports the actual worker route used;
+- stops after handback.
 
-Engineering posts its detailed handback directly in the issue/PR.
+Devin may not silently:
+- substitute or escalate worker model/effort;
+- redesign architecture;
+- widen scope;
+- infer host/deployment permission;
+- self-approve or merge.
 
-Owner-facing summary should be short, for example:
+## 2. Worker routing
 
-> WP-001 handback is posted on issue #1 / PR #N at commit <SHA>. Architecture can review there.
+Default Technical Authority routing:
 
-The owner should not need to copy the handback.
+- solved/deterministic implementation or exact remediation -> **Devin + GPT-5.6 Luna XHigh**;
+- unresolved implementation diagnosis inside fixed architecture -> **Devin + GPT-5.6 Luna Max**;
+- difficult/non-convergent implementation -> explicit Architecture reroute only.
 
-## Blockers
+A worker change is a new Architecture decision.
 
-If Engineering is blocked:
-- post `BLOCKED` in the issue/PR;
-- state exact blocker;
-- include evidence/commands;
-- state what decision or dependency is required;
-- stop the affected work path.
+## 3. Engineering directive minimum
 
-Architecture replies in GitHub.
+Every substantial implementation/remediation directive must state:
 
-## Review states
+- WP;
+- Technical Authority;
+- execution agent: Devin;
+- worker model + effort;
+- implementation class D1-D5;
+- repository/branch/parent or reviewed HEAD;
+- controlling work order/ADR/review;
+- authorized scope;
+- prohibited/deferred scope;
+- architectural invariants;
+- implementation requirements;
+- numbered acceptance criteria;
+- mandatory verification;
+- STOP conditions;
+- required handback path/content.
 
-Architecture records one of:
+## 4. Mandatory STOP conditions
+
+Engineering stops and returns evidence to Architecture when:
+
+- baseline/parent is wrong;
+- success requires architecture change or scope expansion;
+- a material security/data-integrity contradiction appears;
+- success requires weakening/bypassing a legitimate gate;
+- host/deployment mutation would be required without explicit GO;
+- selected worker model/effort is unavailable;
+- further attempts would become speculative;
+- actual repository state materially differs from the directive.
+
+A BLOCKED/STOP handback is a correct outcome.
+
+## 5. Review
+
+Architecture reviews the actual diff, tests, CI and evidence, not Engineering confidence.
+
+Verdicts:
 - `PASS`
-- `REQUEST_CHANGES`
+- `REQUEST_CHANGES — EXACT REMEDIATION`
+- `REQUEST_CHANGES — INVESTIGATION REQUIRED`
 - `HOLD/BLOCKED`
+- `STOP / ARCHITECTURE RETURN`
 
-A PASS applies only to the exact reviewed commit.
-
-## Host work
-
-Host work is permitted only when explicitly stated in the controlling work order.
-
-For WP-001, the only currently authorized ERIS host work is the bounded prerequisite/toolchain audit and installation described in the work order.
-
-No deployment or shared-service configuration is implied by permission to install development prerequisites.
+PASS applies only to the exact reviewed HEAD.
