@@ -82,3 +82,16 @@ jobs:
         run: "timeout 30s $HOME/.local/bin/godot --headless --path apps/game --scene res://scenes/wp010_test.tscn --audio-driver Dummy"
       - name: Run WP-011 opening aggregate vertical-slice test
         run: "timeout 30s $HOME/.local/bin/godot --headless --path apps/game --scene res://scenes/wp011_test.tscn --audio-driver Dummy"
+      - name: Capture WP-011 visual evidence
+        run: |
+          timeout 30s "$HOME/.local/bin/godot" --headless --path apps/game --script res://scripts/wp011_visual_capture.gd --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy
+          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png"
+          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png"
+          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png"
+          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
+          identify "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
+      - name: Upload WP-011 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp011-visual-evidence
+          path: ${{ env.HOME }}/.local/share/godot/app_userdata/GRIDWORKS/wp011-*.png
