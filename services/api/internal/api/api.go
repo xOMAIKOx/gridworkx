@@ -143,6 +143,16 @@ type Server struct {
 func NewServer(repo Repository, version string) *Server {
 	return &Server{Repo: repo, Version: version, Now: time.Now, MaxBody: MaxJSONBody}
 }
+func RouteInventory() map[string][]string {
+	return map[string][]string{
+		"/healthz": {"GET"}, "/readyz": {"GET"}, "/version": {"GET"},
+		"/api/v1/auth/guest": {"POST"}, "/api/v1/auth/session": {"DELETE"},
+		"/api/v1/me": {"GET"}, "/api/v1/me/profile": {"PATCH"},
+		"/api/v1/players/{player_id}": {"GET"}, "/api/v1/companies": {"POST"},
+		"/api/v1/companies/{company_id}": {"GET"}, "/api/v1/company-groups": {"POST"},
+	}
+}
+
 func (s *Server) Mux() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
@@ -157,7 +167,7 @@ func (s *Server) Mux() http.Handler {
 	mux.HandleFunc("GET /api/v1/companies/{company_id}", s.company)
 	mux.HandleFunc("POST /api/v1/company-groups", s.createGroup)
 	mux.HandleFunc("/", s.notFound)
-	return s.middleware(mux)
+	return s.middleware(s.methodGuard(mux))
 }
 
 type statusWriter struct {
@@ -225,6 +235,27 @@ func (s *Server) now() time.Time {
 	}
 	return time.Now().UTC()
 }
+func (s *Server) methodGuard(next http.Handler) http.Handler {
+	allowed := map[string]string{"/healthz": "GET", "/readyz": "GET", "/version": "GET", "/api/v1/auth/guest": "POST", "/api/v1/auth/session": "DELETE", "/api/v1/me": "GET", "/api/v1/me/profile": "PATCH", "/api/v1/companies": "POST", "/api/v1/company-groups": "POST"}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		allow, known := allowed[path]
+		if !known {
+			if strings.HasPrefix(path, "/api/v1/players/") {
+				allow, known = "GET", true
+			} else if strings.HasPrefix(path, "/api/v1/companies/") {
+				allow, known = "GET", true
+			}
+		}
+		if known && r.Method != allow {
+			w.Header().Set("Allow", allow)
+			writeError(w, r, &APIError{Status: 405, Code: "route.method_not_allowed", Message: "method not allowed"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
 	writeError(w, r, &APIError{Status: http.StatusNotFound, Code: "route.not_found", Message: "route not found"})
 }

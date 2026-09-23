@@ -152,3 +152,19 @@ func TestProfilePatchValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutingReturnsStable404And405(t *testing.T) {
+	h := NewServer(&fakeRepo{}, "test").Mux()
+	r := httptest.NewRequest(http.MethodGet, "/unknown", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unknown route status=%d", w.Code)
+	}
+	r = httptest.NewRequest(http.MethodPost, "/healthz", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusMethodNotAllowed || w.Header().Get("Allow") == "" {
+		t.Fatalf("wrong method status/allow=%d/%s", w.Code, w.Header().Get("Allow"))
+	}
+}

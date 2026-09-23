@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -19,7 +20,15 @@ import (
 	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
 )
 
-type Repository struct{ db *sql.DB }
+type Entropy interface{ Read([]byte) (int, error) }
+type Repository struct {
+	db      *sql.DB
+	entropy Entropy
+}
+
+func NewForTesting(db *sql.DB, entropy Entropy) *Repository {
+	return &Repository{db: db, entropy: entropy}
+}
 
 func Open(ctx context.Context, dsn string) (*Repository, error) {
 	if strings.TrimSpace(dsn) == "" {
@@ -37,20 +46,20 @@ func Open(ctx context.Context, dsn string) (*Repository, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Repository{db: db}, nil
+	return &Repository{db: db, entropy: rand.Reader}, nil
 }
 func (r *Repository) Close() error                   { return r.db.Close() }
 func (r *Repository) Ping(ctx context.Context) error { return r.db.PingContext(ctx) }
-func opaqueID(prefix string) (string, error) {
+func opaqueIDFrom(source Entropy, prefix string) (string, error) {
 	b := make([]byte, 16)
-	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+	if _, err := io.ReadFull(source, b); err != nil {
 		return "", err
 	}
 	return prefix + "." + hex.EncodeToString(b), nil
 }
-func token() (string, error) {
+func tokenFrom(source Entropy) (string, error) {
 	b := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+	if _, err := io.ReadFull(source, b); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
@@ -87,6 +96,11 @@ type guestReceiptRef struct {
 	SessionID string `json:"session_id"`
 }
 
+func lockIdempotency(ctx context.Context, tx *sql.Tx, namespace, key string) error {
+	_, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, namespace+"\x00"+key)
+	return err
+}
+
 func (r *Repository) IssueGuest(ctx context.Context, key string, now time.Time) (api.GuestResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -96,6 +110,9 @@ func (r *Repository) IssueGuest(ctx context.Context, key string, now time.Time) 
 		return api.GuestResult{}, err
 	}
 	defer tx.Rollback()
+	if err := lockIdempotency(ctx, tx, "identity", key); err != nil {
+		return api.GuestResult{}, err
+	}
 	var typ, storedDigest, resultRef string
 	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.identity_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&typ, &storedDigest, &resultRef)
 	if err == nil {
@@ -103,12 +120,14 @@ func (r *Repository) IssueGuest(ctx context.Context, key string, now time.Time) 
 			return api.GuestResult{}, api.ErrConflict
 		}
 		var ref guestReceiptRef
-		if json.Unmarshal([]byte(resultRef), &ref) != nil || ref.AccountID == "" || ref.PlayerID == "" || ref.SessionID == "" || strings.ContainsRune(resultRef, 0) {
+		decoder := json.NewDecoder(bytes.NewReader([]byte(resultRef)))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&ref) != nil || ref.AccountID == "" || ref.PlayerID == "" || ref.SessionID == "" || strings.ContainsRune(resultRef, 0) {
 			return api.GuestResult{}, errors.New("invalid guest receipt")
 		}
 		var exp time.Time
 		var profile []byte
-		if err := tx.QueryRowContext(ctx, `SELECT s.expires_at,json_build_object('player_id',pr.player_id,'handle',pr.handle_display,'display_name',pr.display_name,'avatar_asset_id',pr.avatar_asset_id,'bio',pr.bio,'locale',pr.locale,'timezone',pr.timezone,'visibility',pr.visibility,'dm_policy',pr.dm_policy,'discoverable',pr.discoverable,'notification_preferences',pr.notification_preferences) FROM gridworks.guest_sessions s JOIN gridworks.player_profiles pr ON pr.player_id=$1 WHERE s.session_id=$2`, ref.PlayerID, ref.SessionID).Scan(&exp, &profile); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT s.expires_at,json_build_object('player_id',pr.player_id,'handle',pr.handle_display,'display_name',pr.display_name,'avatar_asset_id',pr.avatar_asset_id,'bio',pr.bio,'locale',pr.locale,'timezone',pr.timezone,'visibility',pr.visibility,'dm_policy',pr.dm_policy,'discoverable',pr.discoverable,'notification_preferences',pr.notification_preferences) FROM gridworks.guest_sessions s JOIN gridworks.accounts a ON a.account_id=s.account_id JOIN gridworks.players p ON p.account_id=a.account_id JOIN gridworks.player_profiles pr ON pr.player_id=p.player_id WHERE s.session_id=$2 AND s.account_id=$1 AND p.player_id=$3`, ref.AccountID, ref.SessionID, ref.PlayerID).Scan(&exp, &profile); err != nil {
 			return api.GuestResult{}, mapDB(err)
 		}
 		if err := tx.Commit(); err != nil {
@@ -119,19 +138,19 @@ func (r *Repository) IssueGuest(ctx context.Context, key string, now time.Time) 
 	if !errors.Is(err, sql.ErrNoRows) {
 		return api.GuestResult{}, err
 	}
-	accountID, err := opaqueID("account")
+	accountID, err := opaqueIDFrom(r.entropy, "account")
 	if err != nil {
 		return api.GuestResult{}, err
 	}
-	playerID, err := opaqueID("player")
+	playerID, err := opaqueIDFrom(r.entropy, "player")
 	if err != nil {
 		return api.GuestResult{}, err
 	}
-	sessionID, err := opaqueID("session")
+	sessionID, err := opaqueIDFrom(r.entropy, "session")
 	if err != nil {
 		return api.GuestResult{}, err
 	}
-	raw, err := token()
+	raw, err := tokenFrom(r.entropy)
 	if err != nil {
 		return api.GuestResult{}, err
 	}
@@ -156,7 +175,7 @@ func (r *Repository) IssueGuest(ctx context.Context, key string, now time.Time) 
 	if marshalErr != nil {
 		return api.GuestResult{}, marshalErr
 	}
-	profile, marshalErr := json.Marshal(map[string]any{"player_id": playerID, "handle": h.Display, "display_name": "Guest", "locale": "en", "timezone": "UTC", "visibility": "public", "dm_policy": "everyone", "discoverable": true, "notification_preferences": map[string]bool{}})
+	profile, marshalErr := json.Marshal(map[string]any{"player_id": playerID, "handle": h.Display, "display_name": "Guest", "avatar_asset_id": "", "bio": "", "locale": "en", "timezone": "UTC", "visibility": "public", "dm_policy": "everyone", "discoverable": true, "notification_preferences": map[string]bool{}})
 	if marshalErr != nil {
 		return api.GuestResult{}, marshalErr
 	}
@@ -219,6 +238,9 @@ func (r *Repository) UpdateProfile(ctx context.Context, p api.Principal, key str
 		return api.MeView{}, err
 	}
 	defer tx.Rollback()
+	if err := lockIdempotency(ctx, tx, "identity", key); err != nil {
+		return api.MeView{}, err
+	}
 	var typ, sd string
 	var ref string
 	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.identity_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&typ, &sd, &ref)
@@ -251,7 +273,7 @@ func (r *Repository) UpdateProfile(ctx context.Context, p api.Principal, key str
 		}
 		prefs = encoded
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE gridworks.player_profiles SET display_name=COALESCE($1,display_name),bio=COALESCE($2,bio),locale=COALESCE($3,locale),timezone=COALESCE($4,timezone),visibility=COALESCE($5,visibility),dm_policy=COALESCE($6,dm_policy),discoverable=COALESCE($7,discoverable),notification_preferences=COALESCE($8,notification_preferences),updated_at=$9 WHERE player_id=$10 AND account_id=$11`, patch.DisplayName, patch.Bio, patch.Locale, patch.Timezone, patch.Visibility, patch.DMPolicy, patch.Discoverable, prefs, now, p.PlayerID, p.AccountID)
+	_, err = tx.ExecContext(ctx, `UPDATE gridworks.player_profiles SET display_name=COALESCE($1,display_name),bio=COALESCE($2,bio),locale=COALESCE($3,locale),timezone=COALESCE($4,timezone),visibility=COALESCE($5,visibility),dm_policy=COALESCE($6,dm_policy),discoverable=COALESCE($7,discoverable),notification_preferences=COALESCE($8::jsonb,notification_preferences),updated_at=$9 WHERE player_id=$10 AND account_id=$11`, patch.DisplayName, patch.Bio, patch.Locale, patch.Timezone, patch.Visibility, patch.DMPolicy, patch.Discoverable, prefs, now, p.PlayerID, p.AccountID)
 	if err != nil {
 		return api.MeView{}, err
 	}
@@ -290,6 +312,9 @@ func (r *Repository) CreateCompany(ctx context.Context, p api.Principal, key str
 		return api.CreatedEntity{}, err
 	}
 	defer tx.Rollback()
+	if err := lockIdempotency(ctx, tx, "company", key); err != nil {
+		return api.CreatedEntity{}, err
+	}
 	var typ, storedDigest, existingID string
 	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.company_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&typ, &storedDigest, &existingID)
 	if err == nil {
@@ -308,18 +333,18 @@ func (r *Repository) CreateCompany(ctx context.Context, p api.Principal, key str
 	if !errors.Is(err, sql.ErrNoRows) {
 		return api.CreatedEntity{}, err
 	}
-	id, err := opaqueID("company")
+	id, err := opaqueIDFrom(r.entropy, "company")
 	if err != nil {
 		return api.CreatedEntity{}, err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.companies(company_id,company_type,name_display,name_canonical,name_skeleton,status,visibility,created_at,updated_at) VALUES($1,$2,$3,$4,$5,'active','public',$6,$6)`, id, req.CompanyType, displayName, name.Canonical, name.Skeleton, now); err != nil {
 		return api.CreatedEntity{}, mapDB(err)
 	}
-	oid, err := opaqueID("ownership")
+	oid, err := opaqueIDFrom(r.entropy, "ownership")
 	if err != nil {
 		return api.CreatedEntity{}, err
 	}
-	eid, err := opaqueID("ownership-event")
+	eid, err := opaqueIDFrom(r.entropy, "ownership-event")
 	if err != nil {
 		return api.CreatedEntity{}, err
 	}
@@ -335,7 +360,7 @@ func (r *Repository) CreateCompany(ctx context.Context, p api.Principal, key str
 	if err = tx.Commit(); err != nil {
 		return api.CreatedEntity{}, err
 	}
-	return api.CreatedEntity{ID: id, Name: req.Name}, nil
+	return api.CreatedEntity{ID: id, Name: displayName}, nil
 }
 func (r *Repository) GetPublicCompany(ctx context.Context, id string) (api.PublicCompanyView, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -361,6 +386,9 @@ func (r *Repository) CreateGroup(ctx context.Context, p api.Principal, key strin
 		return api.CreatedEntity{}, err
 	}
 	defer tx.Rollback()
+	if err := lockIdempotency(ctx, tx, "company", key); err != nil {
+		return api.CreatedEntity{}, err
+	}
 	var typ, storedDigest, existingID string
 	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.company_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&typ, &storedDigest, &existingID)
 	if err == nil {
@@ -379,18 +407,18 @@ func (r *Repository) CreateGroup(ctx context.Context, p api.Principal, key strin
 	if !errors.Is(err, sql.ErrNoRows) {
 		return api.CreatedEntity{}, err
 	}
-	id, err := opaqueID("group")
+	id, err := opaqueIDFrom(r.entropy, "group")
 	if err != nil {
 		return api.CreatedEntity{}, err
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.company_groups(group_id,name_display,name_canonical,name_skeleton,status,created_at,updated_at) VALUES($1,$2,$3,$4,'active',$5,$5)`, id, displayName, name.Canonical, name.Skeleton, now); err != nil {
 		return api.CreatedEntity{}, mapDB(err)
 	}
-	oid, err := opaqueID("ownership")
+	oid, err := opaqueIDFrom(r.entropy, "ownership")
 	if err != nil {
 		return api.CreatedEntity{}, err
 	}
-	eid, err := opaqueID("ownership-event")
+	eid, err := opaqueIDFrom(r.entropy, "ownership-event")
 	if err != nil {
 		return api.CreatedEntity{}, err
 	}
@@ -406,5 +434,5 @@ func (r *Repository) CreateGroup(ctx context.Context, p api.Principal, key strin
 	if err = tx.Commit(); err != nil {
 		return api.CreatedEntity{}, err
 	}
-	return api.CreatedEntity{ID: id, Name: req.Name}, nil
+	return api.CreatedEntity{ID: id, Name: displayName}, nil
 }
