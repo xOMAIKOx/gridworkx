@@ -11,7 +11,9 @@ func parse_bridge(payload: String) -> Dictionary:
 	return parsed
 
 func _ready() -> void:
-	call_deferred("_run")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_run()
 
 func _run() -> void:
 	if not ClassDB.class_exists("GridworksSimBridge"):
