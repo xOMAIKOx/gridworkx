@@ -123,7 +123,10 @@ func _run() -> void:
 	var unsupported_snapshot = JSON.parse_string(created["result"]["snapshot"])
 	unsupported_snapshot["schema_version"] = "schema-unsupported"
 	unsupported_snapshot["state"]["schema_version"] = "schema-unsupported"
-	if not expect_error(bridge.digest_snapshot(JSON.stringify(unsupported_snapshot)), "bridge.version_mismatch", "unsupported schema"):
+	var unsupported_schema_result = bridge.digest_snapshot(JSON.stringify(unsupported_snapshot))
+	if not check(not unsupported_schema_result.get("ok", true), "unsupported schema unexpectedly succeeded"):
+		return
+	if not check(unsupported_schema_result.get("error", {}).get("code", "") == "bridge.version_mismatch", "unsupported schema returned the wrong error code: " + JSON.stringify(unsupported_schema_result)):
 		return
 	var invalid_rng_snapshot = JSON.parse_string(created["result"]["snapshot"])
 	invalid_rng_snapshot["state"]["rng"]["algorithm"] = "rng-unsupported"
