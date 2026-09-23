@@ -1,11 +1,11 @@
-# WP-009 R13–R21 Engineering Handback
+# WP-009 Current-Head Engineering Handback — R21/R22 Closure
 
 **Repository:** `xOMAIKOx/gridworkx`  
 **Branch:** `engineering/wp-009-go-api-foundation`  
 **Existing PR:** #20  
 **Exact required parent:** `f93c6526f9ce8743406606265456b283c8d8787c`  
-**Authorized source:** issue #19 Architecture comment `5792358224`  
-**Scope:** R13–R21 only
+**Authorized source:** issue #19 Architecture current-head review comment `5793849013`
+**Scope:** R21/R22 closure on the current PR head; previously accepted R13–R20/R23/R24 evidence retained in this document and the current PR history
 
 The exact final implementation SHA and CI URLs are recorded in the GitHub issue/PR handback posted after the final branch gates complete.
 

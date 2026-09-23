@@ -57,3 +57,8 @@ The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provi
 - External request IDs are restricted to ASCII alphanumeric plus `._:-`, non-empty and <=96 characters. Unsafe printable/control values are replaced before reflection/logging; Authorization, bodies and DSNs are not access-log fields.
 
 The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provider, host, reverse-proxy, deployment, port or container runtime action occurred.
+
+
+## Current-head R21/R22 closure
+
+The current Architecture control is issue #19 comment `5793849013`. R21 closes explicit company/domain error mapping to stable 4xx API errors. R22 closes deterministic guest first/replay DTO shape and strict receipt EOF/cross-wiring validation. R23/R24 remain accepted at repository-test level from the current PR history.
