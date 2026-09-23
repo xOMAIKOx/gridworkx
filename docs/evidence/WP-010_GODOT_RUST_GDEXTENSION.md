@@ -2,32 +2,105 @@
 
 ## Boundary and authority
 
-`crates/gridworks-godot` is a dedicated `cdylib`/`rlib` wrapper over `gridworks-sim`. It exposes one `RefCounted` Godot class, `GridworksSimBridge`, with coarse stateless UTF-8 JSON operations: metadata, snapshot creation, explicit elapsed advance, command batch, digest validation and facility summary.
+`crates/gridworks-godot` is a dedicated `cdylib` wrapper over `gridworks-sim`. It exposes one `RefCounted` Godot class, `GridworksSimBridge`, with a coarse stateless UTF-8 JSON boundary. All canonical transitions, RNG, snapshot serialization, digest calculation and facility evaluation remain in `gridworks-sim`.
 
-The bridge contains translation, bounds and stable error-envelope logic only. Simulation transitions, RNG, snapshot serialization, digest calculation and facility evaluation remain in `gridworks-sim`. No network, database, filesystem persistence, device wall clock, Godot RNG or raw pointer protocol is used.
+No network, database, filesystem persistence, device wall clock, Godot RNG, raw pointer protocol or simulation reimplementation is used.
 
 ## Toolchain and binding
 
-- Rust toolchain pin: `1.80.0`.
-- Godot editor: pinned CI Godot `4.7.2`.
+- Rust toolchain: exact repository pin `1.80.0`.
+- Godot editor/runtime: pinned CI `4.7.2`.
 - Binding: exact `godot = "=0.2.4"`.
 - Bridge contract: `godot-rust-bridge-0.1.0`.
-- Generated libraries are staged under ignored `apps/game/bin/`; no compiled native artifact is committed.
+- Native artifacts are staged below ignored `apps/game/bin/`; no compiled library is committed.
 
-## Boundary safety
+## Exported bridge methods
 
-Snapshot input is bounded to 4 MiB and command batches to 1 MiB. Malformed JSON, unsupported versions, invalid seeds/time, duplicate commands and simulation errors return stable JSON error envelopes. Batch execution uses a working state and returns no successful partial result after a later command failure.
+`GridworksSimBridge` exports exactly:
 
-## Deterministic parity
+- `bridge_metadata()`
+- `create_snapshot(seed)`
+- `advance_snapshot(snapshot_json, elapsed_ms)`
+- `advance_to_snapshot(snapshot_json, authoritative_time_ms)`
+- `execute_command_batch(snapshot_json, command_batch_json)`
+- `digest_snapshot(snapshot_json)`
+- `validate_digest(snapshot_json, expected_digest)`
+- `evaluate_facility(snapshot_json, facility_id)`
 
-`tests/deterministic/fixtures/wp010/fixture.json` is consumed by the Rust `wp010_fixture` integration test, which writes an ignored canonical result artifact, and by the real headless Godot test. The Godot test loads the actual `.gdextension`, verifies class/method/metadata registration, runs snapshot creation/advance/batch/digest/facility operations, compares snapshot/digest/events against the Rust artifact, repeats the operation for state-leakage detection and verifies malformed input rejection.
+The facility method evaluates only the supplied canonical snapshot. Facility identifiers are bounded to 1–128 UTF-8 bytes. Snapshot payloads are bounded to 4 MiB and command batches to 1 MiB.
 
-## Build and runtime proof
+## Versioned envelope and errors
 
-`ops/scripts/build-godot-extension.sh` builds the bridge, generates the pure-Rust fixture result, stages the `.so` and fixture inputs into the ignored Godot binary path, and rejects tracked native artifacts. CI then parses the Godot project and runs `wp010_headless_test.gd` with Godot 4.7.2.
+Every native success and error envelope includes:
 
-Future Android/iOS artifact slots remain documentation/build-target concerns; no SDK/NDK/Xcode tooling or packaging was added.
+- `bridge_version`
+- `schema_version`
+- `rules_version`
+- `ok`
+- `operation`
+- `result` or `error`
 
-## Scope
+The schema is `packages/schemas/godot-bridge.schema.json`.
 
-No WP-011 gameplay/UI, API/network sync, persistence, realtime, marketplace, contracts, managers, mobile packaging, deployment, host mutation, service activation, ports or container runtime work was performed.
+Stable boundary mappings include:
+
+| Condition | Code |
+| --- | --- |
+| malformed/unknown-field JSON | `bridge.invalid_json` |
+| oversized snapshot or batch | `bridge.payload_too_large` |
+| non-positive seed | `bridge.invalid_seed` |
+| invalid RNG state | `bridge.invalid_rng` |
+| unsupported schema/rules | `bridge.version_mismatch` |
+| unsupported kernel/state validation | `bridge.invalid_state` |
+| malformed command | `bridge.invalid_command` |
+| unsupported command type | `bridge.unsupported_command` |
+| duplicate command/idempotency key | `bridge.duplicate_command` |
+| backward/invalid time | `bridge.invalid_time` |
+| arithmetic overflow | `bridge.arithmetic` |
+| unknown facility | `bridge.unknown_facility` |
+| digest mismatch | `bridge.digest_mismatch` |
+| unexpected panic/encoding failure | `bridge.internal` |
+
+Rust diagnostic strings and `Debug` representations are not exposed.
+
+## Panic and atomicity safety
+
+Every exported bridge method executes through a narrow `catch_unwind(AssertUnwindSafe(...))` guard. Unexpected panics become `bridge.internal` envelopes and cannot unwind across the GDExtension boundary.
+
+Command batches execute against a working `SimulationState`; a later command failure returns only an error envelope and no partial snapshot. Duplicate command identity and idempotency are rejected by the canonical kernel.
+
+## Presentation wrapper
+
+`apps/game/scripts/sim_bridge.gd` is the thin Godot-side `GridworksSimBridgeClient` wrapper. It instantiates/checks the native class, exposes all coarse methods, validates versioned envelopes and returns typed availability/method/envelope errors. It contains no simulation math, RNG or fallback state logic. The headless parity scene exercises this wrapper rather than calling the native object directly.
+
+## Committed deterministic golden
+
+The shared fixture is:
+
+`tests/deterministic/fixtures/wp010/fixture.json`
+
+It pins seed `1234`, elapsed time `5000`, authoritative time `7500`, a non-empty adjust-register plus seeded-pulse command batch, event semantics and these accepted canonical digests:
+
+- after elapsed advance: `732fbdc2e38b55a1b64b5aa9d8a01c2747a20fe9c275c0e4eda537805b0a4c84`
+- after command batch: `5d3dbf4308f1d04ca235d9b82b85c11aadad7f1652966747a4a8eb3274b36161`
+- final authoritative-time state: `bab9c269e56f5ca05c438f958d54784012012eba8ad1c41d9caec6529c900c4c`
+
+The pure Rust fixture test asserts these committed values and writes ignored parity artifacts. Godot consumes the same committed fixture and compares snapshots, events and digests against those Rust artifacts and pinned values.
+
+## Discovery and runtime proof
+
+`ops/scripts/build-godot-extension.sh` stages the real Linux `.so` and fixture artifacts but does not manufacture Godot project data. CI performs the authorized discovery sequence:
+
+```sh
+timeout 30s godot --headless --editor --path apps/game --quit --audio-driver Dummy
+test -f apps/game/.godot/extension_list.cfg
+grep -cFx 'res://native/gridworks_sim.gdextension' apps/game/.godot/extension_list.cfg
+```
+
+The generated list is asserted to contain exactly the WP-010 descriptor. A fresh normal runtime process then executes `res://scenes/wp010_test.tscn`, proving ClassDB registration, wrapper availability, every exported method, golden parity, negative/error matrix and non-crashing malformed input behavior.
+
+## Verification scope
+
+The final CI handback records the full repository foundation gates plus the editor discovery scan, normal headless parse and real deterministic parity scene. Mobile packaging remains deferred to the relevant later work package; no mobile SDK/NDK/Xcode work is part of WP-010.
+
+No WP-011 gameplay/UI, API/network sync, persistence, realtime, marketplace, contracts, managers, mobile packaging, deployment, host mutation, service activation, ports or container-runtime work was performed.
