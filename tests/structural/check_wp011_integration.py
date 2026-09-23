@@ -26,7 +26,8 @@ if "create_scenario" not in bridge or "opening_aggregate_scenario" not in bridge
     raise SystemExit("WP-011 scenario bridge operation is missing")
 if "GridworksSimBridgeClient" not in controller or "evaluate_facility" not in controller:
     raise SystemExit("WP-011 controller does not use the accepted bridge wrapper")
-if any(term in controller.lower() for term in ["credits", "revenue", "experience points", "xp"]):
+import re
+if any(re.search(pattern, controller.lower()) for pattern in [r"\bcredits\b", r"\brevenue\b", r"experience points", r"\bxp\b"]):
     raise SystemExit("WP-011 controller contains forbidden fake economy/progression scope")
 required_fixture = {"scenario_id", "seed", "commands", "expected"}
 if not required_fixture.issubset(fixture) or fixture["scenario_id"] != "scenario.opening.aggregate":

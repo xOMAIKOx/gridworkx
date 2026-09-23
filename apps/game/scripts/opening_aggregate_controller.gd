@@ -10,6 +10,18 @@ const COMPONENTS := [
 	{"id": "component.crusher", "label": "Crusher"},
 	{"id": "component.screen", "label": "Screen"},
 ]
+const PLAYER_LABELS := {
+	"symptom.abnormal_vibration": "Abnormal vibration",
+	"symptom.no_rotation": "No rotation",
+	"symptom.blockage_indication": "Blockage indication",
+	"symptom.low_flow": "Low flow",
+	"fault.motor_bearing_seizure": "Motor bearing seizure",
+	"fault.worn_belt": "Worn belt",
+	"fault.screen_blockage": "Screen blockage",
+	"Resolved": "Resolved",
+	"Confirmed": "Confirmed",
+	"Unresolved": "Needs more evidence",
+}
 const DIAGNOSIS_CANDIDATES := [
 	{"id": "fault.motor_bearing_seizure", "label": "Motor bearing seizure"},
 	{"id": "fault.worn_belt", "label": "Worn belt"},
@@ -32,6 +44,8 @@ var evidence_label: Label
 var inventory_label: Label
 var advisor_label: Label
 var error_label: Label
+var action_reason_label: Label
+var action_grid: GridContainer
 var component_buttons: Array[Button] = []
 var diagnosis_buttons: Array[Button] = []
 var action_buttons: Array[Button] = []
@@ -51,6 +65,7 @@ func _build_ui() -> void:
 	add_child(scroll)
 	var content := VBoxContainer.new()
 	content.custom_minimum_size = Vector2(360, 860)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	scroll.add_child(content)
 	var title := Label.new()
@@ -58,26 +73,40 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 26)
 	content.add_child(title)
 	status_label = _section(content, "Onboarding state")
-	facility_label = _section(content, "Process schematic")
+	facility_label = _section(content, "Facility status")
 	selected_label = _section(content, "Selected component")
 	evidence_label = _section(content, "Evidence and diagnosis")
 	inventory_label = _section(content, "Inventory and throughput")
 	advisor_label = _section(content, "Advisor")
 	error_label = _section(content, "Errors")
-	var components_title := Label.new()
-	components_title.text = "Select a component"
-	components_title.add_theme_font_size_override("font_size", 17)
-	content.add_child(components_title)
-	var components := GridContainer.new()
-	components.columns = 2
-	content.add_child(components)
-	for component in COMPONENTS:
-		var button := Button.new()
-		button.text = component["label"]
-		button.custom_minimum_size = Vector2(170, 48)
-		button.pressed.connect(_select_component.bind(component["id"]))
-		components.add_child(button)
-		component_buttons.append(button)
+	action_reason_label = _section(content, "Action guidance")
+	var schematic_title := Label.new()
+	schematic_title.text = "Process schematic — select a process node"
+	schematic_title.add_theme_font_size_override("font_size", 17)
+	content.add_child(schematic_title)
+	var schematic := FlowContainer.new()
+	schematic.custom_minimum_size = Vector2(0, 110)
+	schematic.add_theme_constant_override("h_separation", 8)
+	schematic.add_theme_constant_override("v_separation", 8)
+	content.add_child(schematic)
+	for node in [
+		{"id": "component.feed_stockpile", "label": "Feed stockpile", "selectable": false},
+		{"id": "component.feed_conveyor", "label": "Feed conveyor", "selectable": true},
+		{"id": "component.crusher", "label": "Crusher", "selectable": true},
+		{"id": "component.screen", "label": "Screen", "selectable": true},
+		{"id": "component.output_conveyor", "label": "Output conveyor", "selectable": true},
+		{"id": "component.finished_stockpile", "label": "Finished stockpile", "selectable": false},
+	]:
+		var node_button := Button.new()
+		node_button.text = node["label"]
+		node_button.custom_minimum_size = Vector2(155, 58)
+		node_button.disabled = not node["selectable"]
+		node_button.tooltip_text = "Select and inspect this component" if node["selectable"] else "Storage node"
+		if node["selectable"]:
+			node_button.pressed.connect(_select_component.bind(node["id"]))
+			node_button.set_meta("component_id", node["id"])
+			component_buttons.append(node_button)
+		schematic.add_child(node_button)
 	var inspect_title := Label.new()
 	inspect_title.text = "Canonical inspection"
 	inspect_title.add_theme_font_size_override("font_size", 17)
@@ -92,27 +121,31 @@ func _build_ui() -> void:
 	diagnosis_title.add_theme_font_size_override("font_size", 17)
 	content.add_child(diagnosis_title)
 	var diagnoses := GridContainer.new()
-	diagnoses.columns = 1
+	diagnoses.columns = 3
 	content.add_child(diagnoses)
 	for candidate in DIAGNOSIS_CANDIDATES:
 		var button := Button.new()
 		button.text = candidate["label"]
-		button.custom_minimum_size = Vector2(350, 48)
+		button.custom_minimum_size = Vector2(200, 48)
 		button.pressed.connect(select_diagnosis.bind(candidate["id"]))
 		diagnoses.add_child(button)
 		diagnosis_buttons.append(button)
-	var actions := GridContainer.new()
-	actions.columns = 2
-	content.add_child(actions)
-	_add_button(actions, "Repair output belt", repair_output_belt)
-	_add_button(actions, "Repair feed conveyor", repair_feed_conveyor)
-	_add_button(actions, "Run aggregate production", produce_first_output)
-	_add_button(actions, "Restart scenario", restart_scenario)
+	action_grid = GridContainer.new()
+	action_grid.columns = 4 if get_viewport_rect().size.x >= 900 else 2
+	content.add_child(action_grid)
+	_add_button(action_grid, "Repair output belt", repair_output_belt)
+	_add_button(action_grid, "Repair feed conveyor", repair_feed_conveyor)
+	_add_button(action_grid, "Run aggregate production", produce_first_output)
+	_add_button(action_grid, "Restart scenario", restart_scenario)
 	var advisor_control := Button.new()
 	advisor_control.text = "Dismiss / show advisor"
 	advisor_control.custom_minimum_size = Vector2(350, 48)
 	advisor_control.pressed.connect(_toggle_advisor)
 	content.add_child(advisor_control)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and action_grid:
+		action_grid.columns = 4 if get_viewport_rect().size.x >= 900 else 2
 
 func _section(parent: Control, heading: String) -> Label:
 	var panel := VBoxContainer.new()
@@ -165,6 +198,9 @@ func restart_scenario() -> Dictionary:
 func _state() -> Dictionary:
 	var parsed: Variant = JSON.parse_string(snapshot)
 	return parsed.get("state", {}) if typeof(parsed) == TYPE_DICTIONARY else {}
+
+func _friendly(value: String) -> String:
+	return PLAYER_LABELS.get(value, value.replace("_", " ").capitalize())
 
 func _component_label(component_id: String) -> String:
 	for component in COMPONENTS:
@@ -300,15 +336,15 @@ func _render() -> void:
 	presentation_state = _derive_presentation_state(state, capacity, finished)
 	status_label.text = "State: %s | Effective capacity: %d%% | Completion: %s" % [presentation_state, capacity, "YES" if _completion_predicate(state, capacity, finished) else "NO"]
 	facility_label.text = "Feed stockpile → Feed conveyor → Crusher → Screen → Output conveyor → Finished stockpile"
-	selected_label.text = "%s (%s)\nCanonical facility state: %s" % [_component_label(selected_component_id), selected_component_id, str(evaluation["result"].get("operational_state", "Unknown"))]
+	selected_label.text = "%s\nCanonical facility state: %s" % [_component_label(selected_component_id), _friendly(str(evaluation["result"].get("operational_state", "Unknown")))]
 	var evidence_lines: Array[String] = []
 	for item in state.get("failure", {}).get("evidence", []):
 		if item.get("component_id", "") == selected_component_id:
-			evidence_lines.append(str(item.get("observation", "")) + " / " + str(item.get("symptom_id", "")))
+			evidence_lines.append(_friendly(str(item.get("observation", ""))) + " / " + _friendly(str(item.get("symptom_id", ""))))
 	var diagnosis_lines: Array[String] = []
 	for diagnosis in state.get("failure", {}).get("diagnoses", []):
 		if diagnosis.get("component_id", "") == selected_component_id:
-			diagnosis_lines.append(str(diagnosis.get("candidate_fault_type_id", "")) + " / " + str(diagnosis.get("status", "")) + " / " + str(diagnosis.get("confidence_bps", 0)) + " bps")
+			diagnosis_lines.append(_friendly(str(diagnosis.get("candidate_fault_type_id", ""))) + " / " + _friendly(str(diagnosis.get("status", ""))) + " / " + str(int(diagnosis.get("confidence_bps", 0)) / 100) + "% confidence")
 	evidence_label.text = "Observed evidence:\n" + ("\n".join(evidence_lines) if not evidence_lines.is_empty() else "Inspect this component to reveal evidence.") + "\nDiagnosis:\n" + ("\n".join(diagnosis_lines) if not diagnosis_lines.is_empty() else "No diagnosis recorded.")
 	var raw := _material_quantity(state, "inventory.aggregate_feed", "resource.raw_feed", "grade.raw.standard")
 	var limestone := _material_quantity(state, "inventory.aggregate_feed", "resource.limestone", "grade.limestone.standard")
@@ -330,17 +366,28 @@ func _advisor_text() -> String:
 	return "Inspect before spending."
 
 func _refresh_action_buttons(state: Dictionary, capacity: int) -> void:
+	var selected_evidence: bool = state.get("failure", {}).get("evidence", []).any(func(item): return item.get("component_id", "") == selected_component_id)
 	for button in diagnosis_buttons:
-		button.disabled = not state.get("failure", {}).get("evidence", []).any(func(item): return item.get("component_id", "") == selected_component_id)
+		button.disabled = not selected_evidence
+		button.tooltip_text = "Inspect the selected component first" if button.disabled else "Record this canonical diagnosis candidate"
 	var evidence_count: int = state.get("failure", {}).get("evidence", []).size()
 	var diagnosis_count: int = state.get("failure", {}).get("diagnoses", []).size()
+	var reasons: Array[String] = []
 	for button in action_buttons:
 		if button.text == "Repair output belt":
 			button.disabled = evidence_count == 0
+			button.tooltip_text = "Inspect a component before intervening" if button.disabled else "Repair the observed output-belt issue"
 		elif button.text == "Repair feed conveyor":
 			button.disabled = diagnosis_count == 0
+			button.tooltip_text = "Record a diagnosis first" if button.disabled else "Apply the selected canonical intervention"
 		elif button.text == "Run aggregate production":
 			button.disabled = capacity == 0
+			button.tooltip_text = "Restore useful throughput first" if button.disabled else "Execute the canonical aggregate recipe"
+	if diagnosis_count == 0:
+		reasons.append("Diagnosis: inspect the selected component before choosing a candidate.")
+	if capacity == 0:
+		reasons.append("Intervention/production: restore non-zero throughput before producing.")
+	action_reason_label.text = "\n".join(reasons) if not reasons.is_empty() else "Actions are available from canonical state."
 
 func _normalize_command(command: Dictionary) -> Dictionary:
 	var normalized := command.duplicate(true)
@@ -365,27 +412,34 @@ func run_onboarding_contract_checks() -> Dictionary:
 	var response := restart_scenario()
 	if not response.get("ok", false):
 		return response
+	var expected_initial_digest: String = response["result"]["digest"]
 	var initial_text := status_label.text + facility_label.text + selected_label.text + evidence_label.text
 	if initial_text.contains("fault.") or initial_text.contains("seizure"):
 		return {"ok": false, "error": {"code": "opening.answer_leak"}}
-	for component_id in ["component.feed_conveyor", "component.output_conveyor", "component.crusher", "component.screen"]:
+	if presentation_state != "opening.intro":
+		return {"ok": false, "error": {"code": "opening.initial_state"}}
+	var output_inspection := inspect_component("component.output_conveyor")
+	if not output_inspection.get("ok", false) or presentation_state != "opening.inspect":
+		return {"ok": false, "error": {"code": "opening.inspect_state"}}
+	var feed_inspection := inspect_component("component.feed_conveyor")
+	if not feed_inspection.get("ok", false) or presentation_state != "opening.diagnose":
+		return {"ok": false, "error": {"code": "opening.diagnose_state"}}
+	for component_id in ["component.crusher", "component.screen"]:
 		var inspected := inspect_component(component_id)
-		if not inspected.get("ok", false):
-			return inspected
-	if _state().get("failure", {}).get("evidence", []).size() < 4:
-		return {"ok": false, "error": {"code": "opening.evidence_missing"}}
+		if not inspected.get("ok", false) or presentation_state != "opening.diagnose":
+			return {"ok": false, "error": {"code": "opening.required_inspection"}}
 	_select_component("component.feed_conveyor")
 	var diagnosis := select_diagnosis("fault.motor_bearing_seizure")
-	if not diagnosis.get("ok", false):
-		return diagnosis
+	if not diagnosis.get("ok", false) or presentation_state != "opening.intervene":
+		return {"ok": false, "error": {"code": "opening.intervene_state"}}
 	var belt := repair_output_belt()
-	if not belt.get("ok", false) or int(bridge.evaluate_facility(snapshot, FACILITY_ID)["result"]["effective_capacity"]) != 0:
+	if not belt.get("ok", false) or int(bridge.evaluate_facility(snapshot, FACILITY_ID)["result"]["effective_capacity"]) != 0 or presentation_state != "opening.intervene":
 		return {"ok": false, "error": {"code": "opening.wrong_choice_not_recoverable"}}
 	var motor := repair_feed_conveyor()
-	if not motor.get("ok", false) or int(bridge.evaluate_facility(snapshot, FACILITY_ID)["result"]["effective_capacity"]) != 3:
+	if not motor.get("ok", false) or int(bridge.evaluate_facility(snapshot, FACILITY_ID)["result"]["effective_capacity"]) != 3 or presentation_state != "opening.produce":
 		return {"ok": false, "error": {"code": "opening.partial_recovery_failed"}}
 	var production := produce_first_output()
-	if not production.get("ok", false) or int(last_production_event.get("accepted_runs", 0)) != 3 or not production_observed:
+	if not production.get("ok", false) or int(last_production_event.get("accepted_runs", 0)) != 3 or not production_observed or presentation_state != "opening.complete":
 		return {"ok": false, "error": {"code": "opening.production_event_missing"}}
 	var finished := _material_quantity(_state(), "inventory.aggregate_finished", FINISHED_RESOURCE, FINISHED_GRADE)
 	if finished != 24 or not _completion_predicate(_state(), 3, finished):
@@ -395,7 +449,7 @@ func run_onboarding_contract_checks() -> Dictionary:
 	if bad.get("ok", true) or snapshot != before_bad:
 		return {"ok": false, "error": {"code": "opening.error_corrupted_snapshot"}}
 	var restarted := restart_scenario()
-	if not restarted.get("ok", false) or restarted["result"]["digest"] != initial_digest:
+	if not restarted.get("ok", false) or restarted["result"]["digest"] != expected_initial_digest or presentation_state != "opening.intro" or production_observed:
 		return {"ok": false, "error": {"code": "opening.restart_not_deterministic"}}
 	return {"ok": true}
 
