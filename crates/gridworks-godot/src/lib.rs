@@ -77,7 +77,11 @@ pub struct GridworksSimBridge {
 }
 
 #[godot_api]
-impl INode for GridworksSimBridge {}
+impl INode for GridworksSimBridge {
+    fn init(base: Base<Node>) -> Self {
+        Self { base }
+    }
+}
 
 #[godot_api]
 impl GridworksSimBridge {
