@@ -11,6 +11,9 @@ func parse_bridge(payload: String) -> Dictionary:
 	return parsed
 
 func _init() -> void:
+	call_deferred("_run")
+
+func _run() -> void:
 	var bridge = ClassDB.instantiate("GridworksSimBridge")
 	if bridge == null:
 		fail("GDExtension class was not registered")
