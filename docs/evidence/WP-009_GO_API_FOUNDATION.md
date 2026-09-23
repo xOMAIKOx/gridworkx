@@ -62,3 +62,9 @@ The API remains PostgreSQL-only in normal composition. No live PostgreSQL, provi
 ## Current-head R21/R22 closure
 
 The current Architecture control is issue #19 comment `5793849013`. R21 closes explicit company/domain error mapping to stable 4xx API errors. R22 closes deterministic guest first/replay DTO shape and strict receipt EOF/cross-wiring validation. R23/R24 remain accepted at repository-test level from the current PR history.
+
+## Final R21/R22 executable regression closure
+
+The final R21/R22 evidence-only follow-up adds explicit HTTP domain-error mapping tests for invalid/reserved/unavailable company errors and unexpected-error redaction. It also adds actual repository/sqlmock coverage for first-versus-replay profile semantic equality, strict unknown/trailing receipt rejection and cross-wired receipt rejection.
+
+Controlling Architecture review: issue #19 comment `5794035668`.

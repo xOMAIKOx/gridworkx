@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xOMAIKOx/gridworkx/services/internal/company"
 )
 
 type scriptedRepo struct {
@@ -374,5 +376,26 @@ func TestErrorEnvelopeNeverUsesRawInternalError(t *testing.T) {
 	w := perform(NewServer(repo, "test").Mux(), http.MethodGet, "/api/v1/me", "", map[string]string{"Authorization": "Bearer valid-token"})
 	if w.Code != http.StatusInternalServerError || strings.Contains(w.Body.String(), "postgres secret detail") {
 		t.Fatalf("unsafe error response=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestHTTPDomainErrorMappingDoesNotBecome500(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"invalid", company.ErrNameInvalid, http.StatusUnprocessableEntity},
+		{"reserved", company.ErrNameReserved, http.StatusConflict},
+		{"unavailable", company.ErrNameUnavailable, http.StatusConflict},
+		{"unexpected", errors.New("internal database detail"), http.StatusInternalServerError},
+	} {
+		repo := &scriptedRepo{createCompanyFn: func(context.Context, Principal, string, CompanyCreateRequest, time.Time) (CreatedEntity, error) {
+			return CreatedEntity{}, tc.err
+		}}
+		w := perform(NewServer(repo, "test").Mux(), http.MethodPost, "/api/v1/companies", `{"company_type":"operating","name":"Acme"}`, authenticatedHeaders())
+		if w.Code != tc.status || strings.Contains(w.Body.String(), "internal database detail") {
+			t.Fatalf("%s status/body=%d/%s", tc.name, w.Code, w.Body.String())
+		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -69,6 +70,10 @@ func TestIssueGuestSuccessAndReplayUseDurableReceipt(t *testing.T) {
 	if first.RawSessionToken != raw || first.Replay {
 		t.Fatalf("unexpected first result: %+v", first)
 	}
+	var firstProfile map[string]any
+	if err := json.Unmarshal(first.Profile, &firstProfile); err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(ref, raw) {
 		t.Fatal("raw token leaked into receipt")
 	}
@@ -90,6 +95,13 @@ func TestIssueGuestSuccessAndReplayUseDurableReceipt(t *testing.T) {
 	}
 	if !replay.Replay || replay.RawSessionToken != "" || replay.AccountID != accountID || replay.PlayerID != playerID || replay.SessionID != sessionID {
 		t.Fatalf("unexpected replay: %+v", replay)
+	}
+	var replayProfile map[string]any
+	if err := json.Unmarshal(replay.Profile, &replayProfile); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(firstProfile, replayProfile) {
+		t.Fatalf("first/replay profile drift: %#v != %#v", firstProfile, replayProfile)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -322,4 +334,22 @@ func TestRepositoryHonorsParentContextCancellation(t *testing.T) {
 func jsonMarshal(v any) (string, error) {
 	b, err := json.Marshal(v)
 	return string(b), err
+}
+
+func TestGuestReplayRejectsCrossWiredReceipt(t *testing.T) {
+	repo, mock, closeFn := newMockRepository(t, &stepEntropy{})
+	defer closeFn()
+	now := time.Date(2026, 9, 23, 10, 0, 0, 0, time.UTC)
+	ref := `{"account_id":"account.one","player_id":"player.two","session_id":"session.one"}`
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs("identity\x00cross-wired").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mutation_type,request_digest,result_ref FROM gridworks.identity_mutation_receipts").WithArgs("cross-wired").WillReturnRows(sqlmock.NewRows([]string{"mutation_type", "request_digest", "result_ref"}).AddRow("identity.guest_issue", digest("identity.guest_issue\x00cross-wired"), ref))
+	mock.ExpectQuery("SELECT s.expires_at,json_build_object").WithArgs("account.one", "session.one", "player.two").WillReturnError(sql.ErrNoRows)
+	mock.ExpectRollback()
+	if _, err := repo.IssueGuest(context.Background(), "cross-wired", now); err == nil {
+		t.Fatal("cross-wired receipt was accepted")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
 }
