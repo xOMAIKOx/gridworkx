@@ -316,8 +316,12 @@ type NormalizedHandle struct {
 }
 
 func NormalizeHandle(value string) (NormalizedHandle, error) {
+	return NormalizeHandleWithMax(value, 32)
+}
+
+func NormalizeHandleWithMax(value string, maxRunes int) (NormalizedHandle, error) {
 	display := strings.TrimSpace(value)
-	if display == "" || len([]rune(display)) < 3 || len([]rune(display)) > 32 {
+	if display == "" || len([]rune(display)) < 3 || len([]rune(display)) > maxRunes {
 		return NormalizedHandle{}, ErrHandleInvalid
 	}
 	normalized := norm.NFKC.String(display)

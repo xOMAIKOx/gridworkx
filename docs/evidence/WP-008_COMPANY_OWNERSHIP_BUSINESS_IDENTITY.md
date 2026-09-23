@@ -44,3 +44,11 @@ No WP-009 API, acquisition/sale settlement, marketplace, real estate, JV/Consort
 - Go and SQL share a durable company/group name-claim namespace and reserved policy. Company-create/group-create IDs are always server-generated.
 - Company commands are strict per-mutation schemas and reject caller-supplied create IDs or unrelated fields.
 - Ownership history is SQL append-only and structural validation asserts the guard.
+
+## R10–R14 remediation evidence
+
+- Ownership projection identity is frozen and only one-way lifecycle closure is permitted; authoritative entity rows are locked before ownership mutation and deferred exact-total validation.
+- Group membership reassign stages replacement IDs before closing the old row; failed randomness leaves the old active membership unchanged. Closed membership identity is immutable.
+- Shared company/group name claims are append-only and name identity fields are frozen because rename is out of scope. Company-specific names use the shared normalization algorithm with a consistent 3–80 policy and reserved baseline.
+- Player owner resolution uses an explicit in-memory/repository player registry seam rather than accepting syntactically plausible IDs alone; system ownership remains the exact GRIDWORKS principal.
+- Ownership transfer accepts typed company or group entity references and applies the same exact-share/idempotency/history rules to both.

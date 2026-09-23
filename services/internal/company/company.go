@@ -104,6 +104,8 @@ type CompanyCreateRequest struct {
 }
 type OwnershipTransferRequest struct {
 	CompanyID      string
+	EntityType     string
+	EntityID       string
 	From           OwnerPrincipal
 	To             OwnerPrincipal
 	ShareBPS       uint16
@@ -162,18 +164,19 @@ type Store struct {
 	names       map[string]string
 	skeletons   map[string]string
 	reserved    map[string]struct{}
+	players     map[string]struct{}
 }
 
 func NewStore() *Store { return NewStoreWithRandom(rand.Reader) }
 func NewStoreWithRandom(random io.Reader) *Store {
-	return &Store{random: random, companies: map[string]Company{}, groups: map[string]CompanyGroup{}, receipts: map[string]MutationReceipt{}, names: map[string]string{}, skeletons: map[string]string{}, reserved: map[string]struct{}{"gridworks": {}, "official": {}, "system": {}, "admin": {}, "administrator": {}, "support": {}, "moderator": {}}}
+	return &Store{random: random, companies: map[string]Company{}, groups: map[string]CompanyGroup{}, receipts: map[string]MutationReceipt{}, names: map[string]string{}, skeletons: map[string]string{}, players: map[string]struct{}{}, reserved: map[string]struct{}{"gridworks": {}, "official": {}, "system": {}, "admin": {}, "administrator": {}, "support": {}, "moderator": {}}}
 }
 
 func (s *Store) CreateCompany(req CompanyCreateRequest, now time.Time) (Company, error) {
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		return Company{}, ErrInvalidIdempotency
 	}
-	if !validOwner(req.Owner) {
+	if !ownerShape(req.Owner) {
 		return Company{}, ErrOwnerInvalid
 	}
 	if req.CompanyType != Holding && req.CompanyType != Operating && req.CompanyType != System {
@@ -182,6 +185,9 @@ func (s *Store) CreateCompany(req CompanyCreateRequest, now time.Time) (Company,
 	digest := requestDigest("company.create", string(req.CompanyType), req.Name, string(req.Owner.Type), req.Owner.ID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.hasOwner(req.Owner) {
+		return Company{}, ErrOwnerInvalid
+	}
 	if receipt, ok := s.receipts[req.IdempotencyKey]; ok {
 		if receipt.MutationType != "company.create" || receipt.RequestDigest != digest {
 			return Company{}, ErrIdempotencyConflict
@@ -230,12 +236,15 @@ func (s *Store) CreateGroup(req GroupCreateRequest, now time.Time) (CompanyGroup
 	if strings.TrimSpace(req.IdempotencyKey) == "" {
 		return CompanyGroup{}, ErrInvalidIdempotency
 	}
-	if !validOwner(req.Owner) {
+	if !ownerShape(req.Owner) {
 		return CompanyGroup{}, ErrOwnerInvalid
 	}
 	digest := requestDigest("group.create", req.Name, string(req.Owner.Type), req.Owner.ID)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.hasOwner(req.Owner) {
+		return CompanyGroup{}, ErrOwnerInvalid
+	}
 	if r, ok := s.receipts[req.IdempotencyKey]; ok {
 		if r.MutationType != "group.create" || r.RequestDigest != digest {
 			return CompanyGroup{}, ErrIdempotencyConflict
@@ -287,26 +296,42 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 	if req.From == req.To || req.ShareBPS == 0 || req.ShareBPS > OwnershipBPS {
 		return ErrInvalidShare
 	}
-	if !validOwner(req.From) || !validOwner(req.To) {
+	if !ownerShape(req.From) || !ownerShape(req.To) {
 		return ErrOwnerInvalid
 	}
-	digest := requestDigest("ownership.transfer", req.CompanyID, string(req.From.Type), req.From.ID, string(req.To.Type), req.To.ID, fmt.Sprint(req.ShareBPS))
+	entityType := req.EntityType
+	entityID := req.EntityID
+	if entityType == "" {
+		entityType = "company"
+		entityID = req.CompanyID
+	}
+	if entityID == "" || (entityType != "company" && entityType != "group") {
+		return ErrCompanyNotFound
+	}
+	digest := requestDigest("ownership.transfer", entityType, entityID, string(req.From.Type), req.From.ID, string(req.To.Type), req.To.ID, fmt.Sprint(req.ShareBPS))
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.hasOwner(req.From) || !s.hasOwner(req.To) {
+		return ErrOwnerInvalid
+	}
 	if r, ok := s.receipts[req.IdempotencyKey]; ok {
 		if r.MutationType != "ownership.transfer" || r.RequestDigest != digest {
 			return ErrIdempotencyConflict
 		}
 		return nil
 	}
-	if _, ok := s.companies[req.CompanyID]; !ok {
-		return ErrCompanyNotFound
+	if entityType == "company" {
+		if _, ok := s.companies[entityID]; !ok {
+			return ErrCompanyNotFound
+		}
+	} else if _, ok := s.groups[entityID]; !ok {
+		return ErrGroupNotFound
 	}
 	var source *Ownership
 	var target *Ownership
 	total := uint32(0)
 	for i := range s.ownerships {
-		if s.ownerships[i].EntityID != req.CompanyID || !s.ownerships[i].Active {
+		if s.ownerships[i].EntityID != entityID || !s.ownerships[i].Active {
 			continue
 		}
 		total += uint32(s.ownerships[i].ShareBPS)
@@ -342,21 +367,21 @@ func (s *Store) TransferOwnership(req OwnershipTransferRequest, now time.Time) e
 		return err
 	}
 	for i := range s.ownerships {
-		if s.ownerships[i].EntityID == req.CompanyID && s.ownerships[i].Active {
+		if s.ownerships[i].EntityID == entityID && s.ownerships[i].Active {
 			s.ownerships[i].Active = false
 			s.ownerships[i].EffectiveTo = &now
 		}
 	}
 	if sourceShare > req.ShareBPS {
-		s.ownerships = append(s.ownerships, Ownership{OwnershipID: sourceID, EntityID: req.CompanyID, Owner: req.From, ShareBPS: sourceShare - req.ShareBPS, Active: true, EffectiveFrom: now})
+		s.ownerships = append(s.ownerships, Ownership{OwnershipID: sourceID, EntityID: entityID, Owner: req.From, ShareBPS: sourceShare - req.ShareBPS, Active: true, EffectiveFrom: now})
 	}
 	if targetExists {
-		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: req.CompanyID, Owner: req.To, ShareBPS: targetShare + req.ShareBPS, Active: true, EffectiveFrom: now})
+		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: entityID, Owner: req.To, ShareBPS: targetShare + req.ShareBPS, Active: true, EffectiveFrom: now})
 	} else {
-		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: req.CompanyID, Owner: req.To, ShareBPS: req.ShareBPS, Active: true, EffectiveFrom: now})
+		s.ownerships = append(s.ownerships, Ownership{OwnershipID: targetID, EntityID: entityID, Owner: req.To, ShareBPS: req.ShareBPS, Active: true, EffectiveFrom: now})
 	}
-	s.history = append(s.history, OwnershipEvent{EventID: eventID, EntityID: req.CompanyID, MutationType: "ownership.transfer", FromOwner: &req.From, ToOwner: &req.To, ShareBPS: req.ShareBPS, EffectiveTime: now, SourceRef: req.IdempotencyKey, ActorPlayerID: req.ActorPlayerID, CreatedAt: now})
-	s.receipts[req.IdempotencyKey] = MutationReceipt{MutationType: "ownership.transfer", RequestDigest: digest, ResultRef: req.CompanyID}
+	s.history = append(s.history, OwnershipEvent{EventID: eventID, EntityID: entityID, MutationType: "ownership.transfer", FromOwner: &req.From, ToOwner: &req.To, ShareBPS: req.ShareBPS, EffectiveTime: now, SourceRef: req.IdempotencyKey, ActorPlayerID: req.ActorPlayerID, CreatedAt: now})
+	s.receipts[req.IdempotencyKey] = MutationReceipt{MutationType: "ownership.transfer", RequestDigest: digest, ResultRef: entityID}
 	return nil
 }
 
@@ -449,18 +474,27 @@ func (s *Store) ReassignCompany(req GroupAssignRequest, now time.Time) error {
 	if _, ok := s.groups[req.GroupID]; !ok {
 		return ErrGroupNotFound
 	}
-	for i := range s.memberships {
-		if s.memberships[i].CompanyID == req.CompanyID && s.memberships[i].Active {
-			if s.memberships[i].GroupID == req.GroupID {
-				return ErrGroupConflict
-			}
-			s.memberships[i].Active = false
-			s.memberships[i].EffectiveTo = &now
-		}
-	}
 	id, err := opaqueID(s.random, "membership")
 	if err != nil {
 		return err
+	}
+	activeFound := false
+	for i := range s.memberships {
+		if s.memberships[i].CompanyID == req.CompanyID && s.memberships[i].Active {
+			activeFound = true
+			if s.memberships[i].GroupID == req.GroupID {
+				return ErrGroupConflict
+			}
+		}
+	}
+	if !activeFound {
+		return ErrGroupConflict
+	}
+	for i := range s.memberships {
+		if s.memberships[i].CompanyID == req.CompanyID && s.memberships[i].Active {
+			s.memberships[i].Active = false
+			s.memberships[i].EffectiveTo = &now
+		}
 	}
 	s.memberships = append(s.memberships, GroupMembership{MembershipID: id, CompanyID: req.CompanyID, GroupID: req.GroupID, Active: true, EffectiveFrom: now})
 	s.receipts[req.IdempotencyKey] = MutationReceipt{MutationType: "group.reassign", RequestDigest: digest, ResultRef: id}
@@ -489,14 +523,23 @@ func (s *Store) History(entityID string) []OwnershipEvent {
 	}
 	return out
 }
-func validOwner(owner OwnerPrincipal) bool {
-	if owner.ID == "" {
+func ownerShape(owner OwnerPrincipal) bool {
+	return owner.ID != "" && (owner.Type == PlayerPrincipal || owner.Type == SystemPrincipal)
+}
+func (s *Store) hasOwner(owner OwnerPrincipal) bool {
+	if !ownerShape(owner) {
 		return false
 	}
 	if owner.Type == SystemPrincipal {
 		return owner.ID == "principal.gridworks.system"
 	}
-	return owner.Type == PlayerPrincipal && strings.HasPrefix(owner.ID, "player.")
+	_, ok := s.players[owner.ID]
+	return ok
+}
+func (s *Store) RegisterPlayer(playerID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.players[playerID] = struct{}{}
 }
 
 func normalizeCompanyName(value string) (identity.NormalizedHandle, error) {
@@ -506,7 +549,7 @@ func normalizeCompanyName(value string) (identity.NormalizedHandle, error) {
 	}
 	// Company display names may contain spaces; canonical policy shares WP-007 semantics by using its normalized handle key.
 	key := strings.Join(strings.Fields(display), "-")
-	normalized, err := identity.NormalizeHandle(key)
+	normalized, err := identity.NormalizeHandleWithMax(key, 80)
 	if err != nil {
 		return identity.NormalizedHandle{}, ErrNameInvalid
 	}

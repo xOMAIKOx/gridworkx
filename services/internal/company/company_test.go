@@ -10,6 +10,8 @@ import (
 
 func TestCompanyCreationOwnershipAndIdempotency(t *testing.T) {
 	store := NewStore()
+	store.RegisterPlayer("player.one")
+	store.RegisterPlayer("player.two")
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	req := CompanyCreateRequest{CompanyType: Operating, Name: "Acme Works", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.create.one"}
 	company, err := store.CreateCompany(req, now)
@@ -34,6 +36,8 @@ func TestCompanyCreationOwnershipAndIdempotency(t *testing.T) {
 
 func TestOwnershipTransferAndGroupHistory(t *testing.T) {
 	store := NewStore()
+	store.RegisterPlayer("player.one")
+	store.RegisterPlayer("player.two")
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Operating One", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.one"}, now)
 	if err != nil {
@@ -70,6 +74,8 @@ func TestOwnershipTransferAndGroupHistory(t *testing.T) {
 
 func TestFullExitAndGroupDetachReassignHistory(t *testing.T) {
 	store := NewStore()
+	store.RegisterPlayer("player.one")
+	store.RegisterPlayer("player.two")
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Full Exit Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "company.full"}, now)
 	if err != nil {
@@ -100,6 +106,8 @@ func TestFullExitAndGroupDetachReassignHistory(t *testing.T) {
 
 func TestSystemOwnershipReservedNamesAndGenerationFailure(t *testing.T) {
 	store := NewStore()
+	store.RegisterPlayer("player.one")
+	store.RegisterPlayer("player.two")
 	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
 	company, err := store.CreateCompany(CompanyCreateRequest{CompanyType: System, Name: "Gridworks Treasury", Owner: OwnerPrincipal{Type: SystemPrincipal, ID: "principal.gridworks.system"}, IdempotencyKey: "system.one"}, now)
 	if err != nil || len(store.ActiveOwnership(company.CompanyID)) != 1 {
@@ -127,5 +135,49 @@ func TestCompanyProfileUsesSharedIdentityNormalization(t *testing.T) {
 	second, err := identity.NormalizeHandle("Cafe\u0301")
 	if err != nil || first.Canonical != second.Canonical {
 		t.Fatal("company/player normalization contract diverged")
+	}
+}
+
+func TestGroupOwnershipTransferAndPlayerResolution(t *testing.T) {
+	store := NewStore()
+	store.RegisterPlayer("player.one")
+	store.RegisterPlayer("player.two")
+	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
+	group, err := store.CreateGroup(GroupCreateRequest{Name: "Transfer Group", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "group.transfer"}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.TransferOwnership(OwnershipTransferRequest{EntityType: "group", EntityID: group.GroupID, From: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, To: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.two"}, ShareBPS: 2_000, IdempotencyKey: "group.transfer.ownership"}, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	active := store.ActiveOwnership(group.GroupID)
+	total := uint16(0)
+	for _, ownership := range active {
+		total += ownership.ShareBPS
+	}
+	if total != OwnershipBPS {
+		t.Fatal("group transfer did not preserve exact ownership total")
+	}
+	if _, err := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Unknown Owner Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.does-not-exist"}, IdempotencyKey: "unknown-owner"}, now); err != ErrOwnerInvalid {
+		t.Fatal("unknown player principal was accepted")
+	}
+}
+
+func TestReassignFailureDoesNotCloseExistingMembership(t *testing.T) {
+	store := NewStore()
+	store.RegisterPlayer("player.one")
+	now := time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC)
+	company, _ := store.CreateCompany(CompanyCreateRequest{CompanyType: Operating, Name: "Atomic Reassign Co", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "atomic.company"}, now)
+	groupA, _ := store.CreateGroup(GroupCreateRequest{Name: "Atomic Group A", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "atomic.group.a"}, now)
+	groupB, _ := store.CreateGroup(GroupCreateRequest{Name: "Atomic Group B", Owner: OwnerPrincipal{Type: PlayerPrincipal, ID: "player.one"}, IdempotencyKey: "atomic.group.b"}, now)
+	if err := store.AssignCompany(GroupAssignRequest{CompanyID: company.CompanyID, GroupID: groupA.GroupID, IdempotencyKey: "atomic.assign"}, now); err != nil {
+		t.Fatal(err)
+	}
+	store.random = failingReader{}
+	if err := store.ReassignCompany(GroupAssignRequest{CompanyID: company.CompanyID, GroupID: groupB.GroupID, IdempotencyKey: "atomic.reassign"}, now.Add(time.Minute)); err == nil {
+		t.Fatal("expected reassign generation failure")
+	}
+	if len(store.memberships) != 1 || !store.memberships[0].Active || store.memberships[0].GroupID != groupA.GroupID {
+		t.Fatal("failed reassign closed existing membership")
 	}
 }
