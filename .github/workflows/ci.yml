@@ -84,7 +84,7 @@ jobs:
         run: "timeout 30s $HOME/.local/bin/godot --headless --path apps/game --scene res://scenes/wp011_test.tscn --audio-driver Dummy"
       - name: Capture WP-011 visual evidence
         run: |
-          timeout 30s "$HOME/.local/bin/godot" --headless --path apps/game --script res://scripts/wp011_visual_capture.gd --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy
+          timeout 30s xvfb-run -a "$HOME/.local/bin/godot" --path apps/game --script res://scripts/wp011_visual_capture.gd --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy
           test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png"
           test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png"
           test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png"
