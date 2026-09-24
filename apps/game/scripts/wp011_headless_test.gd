@@ -10,6 +10,12 @@ func _ready() -> void:
 		push_error("WP011 fixture is invalid")
 		get_tree().quit(1)
 		return
+	get_viewport().size = Vector2i(390, 844)
+	await get_tree().process_frame
+	if controller.root_scroll.get_h_scroll_bar().visible or controller.content_container.size.x > get_viewport().size.x + 1:
+		push_error("WP011 portrait layout overflows horizontally")
+		get_tree().quit(1)
+		return
 	var contract = controller.run_onboarding_contract_checks()
 	if not contract.get("ok", false):
 		push_error("WP011 controller contract failed: " + JSON.stringify(contract))

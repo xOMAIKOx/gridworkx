@@ -85,11 +85,14 @@ jobs:
       - name: Capture WP-011 visual evidence
         run: |
           timeout 30s xvfb-run -a "$HOME/.local/bin/godot" --path apps/game --script res://scripts/wp011_visual_capture.gd --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy
-          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png"
-          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png"
-          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png"
-          test -s "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
-          file "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png" "$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
+          portrait="$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-portrait.png"
+          wide="$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-opening-wide.png"
+          inspected="$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-inspected-feed.png"
+          partial="$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-partial-recovery.png"
+          first_output="$HOME/.local/share/godot/app_userdata/GRIDWORKS/wp011-first-output.png"
+          test -s "$portrait" && test -s "$wide" && test -s "$inspected" && test -s "$partial" && test -s "$first_output"
+          test "$(file "$portrait" "$inspected" "$partial" "$first_output" | grep -c 'PNG image data, 390 x 844')" -eq 4
+          test "$(file "$wide" | grep -c 'PNG image data, 1440 x 900')" -eq 1
       - name: Upload WP-011 visual evidence
         uses: actions/upload-artifact@v4
         with:

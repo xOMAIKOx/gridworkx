@@ -46,6 +46,9 @@ var advisor_label: Label
 var error_label: Label
 var action_reason_label: Label
 var action_grid: GridContainer
+var diagnosis_grid: GridContainer
+var root_scroll: ScrollContainer
+var content_container: VBoxContainer
 var component_buttons: Array[Button] = []
 var diagnosis_buttons: Array[Button] = []
 var action_buttons: Array[Button] = []
@@ -60,14 +63,16 @@ func _ready() -> void:
 
 func _build_ui() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var scroll := ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(scroll)
-	var content := VBoxContainer.new()
-	content.custom_minimum_size = Vector2(360, 860)
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 10)
-	scroll.add_child(content)
+	root_scroll = ScrollContainer.new()
+	root_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	add_child(root_scroll)
+	content_container = VBoxContainer.new()
+	content_container.custom_minimum_size = Vector2(0, 860)
+	content_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content_container.add_theme_constant_override("separation", 10)
+	root_scroll.add_child(content_container)
+	var content := content_container
 	var title := Label.new()
 	title.text = "Opening Aggregate Plant"
 	title.add_theme_font_size_override("font_size", 26)
@@ -120,15 +125,15 @@ func _build_ui() -> void:
 	diagnosis_title.text = "Choose a diagnosis candidate"
 	diagnosis_title.add_theme_font_size_override("font_size", 17)
 	content.add_child(diagnosis_title)
-	var diagnoses := GridContainer.new()
-	diagnoses.columns = 3
-	content.add_child(diagnoses)
+	diagnosis_grid = GridContainer.new()
+	diagnosis_grid.columns = 3 if get_viewport_rect().size.x >= 900 else 1
+	content.add_child(diagnosis_grid)
 	for candidate in DIAGNOSIS_CANDIDATES:
 		var button := Button.new()
 		button.text = candidate["label"]
 		button.custom_minimum_size = Vector2(200, 48)
 		button.pressed.connect(select_diagnosis.bind(candidate["id"]))
-		diagnoses.add_child(button)
+		diagnosis_grid.add_child(button)
 		diagnosis_buttons.append(button)
 	action_grid = GridContainer.new()
 	action_grid.columns = 4 if get_viewport_rect().size.x >= 900 else 2
@@ -144,8 +149,11 @@ func _build_ui() -> void:
 	content.add_child(advisor_control)
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and action_grid:
-		action_grid.columns = 4 if get_viewport_rect().size.x >= 900 else 2
+	if what == NOTIFICATION_RESIZED:
+		if action_grid:
+			action_grid.columns = 4 if get_viewport_rect().size.x >= 900 else 2
+		if diagnosis_grid:
+			diagnosis_grid.columns = 3 if get_viewport_rect().size.x >= 900 else 1
 
 func _section(parent: Control, heading: String) -> Label:
 	var panel := VBoxContainer.new()

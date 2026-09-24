@@ -35,6 +35,6 @@ if not required_fixture.issubset(fixture) or fixture["scenario_id"] != "scenario
 for key in ["initial_digest", "partial_recovery_digest", "final_digest", "effective_capacity", "accepted_runs", "finished_aggregate_quantity", "event_types"]:
     if key not in fixture["expected"]:
         raise SystemExit(f"WP-011 golden is missing {key}")
-if "wp011_test.tscn" not in workflow:
+if "wp011_test.tscn" not in workflow or "PNG image data, 390 x 844" not in workflow or "PNG image data, 1440 x 900" not in workflow:
     raise SystemExit("WP-011 headless test is not wired into CI")
 print("WP-011 integration shape is valid.")
