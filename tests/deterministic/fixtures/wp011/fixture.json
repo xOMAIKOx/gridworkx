@@ -1,0 +1,152 @@
+{
+  "scenario_id": "scenario.opening.aggregate",
+  "seed": 1234,
+  "commands": [
+    {
+      "command_id": "opening.inspect.feed",
+      "command_type": "failure.inspect",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 0,
+      "idempotency_key": "opening.inspect.feed.v1",
+      "payload": {
+        "failure": {
+          "action": "Inspect",
+          "data": {
+            "evidence_id": "evidence.opening.feed",
+            "component_id": "component.feed_conveyor",
+            "diagnostic_capability_bps": 10000
+          }
+        }
+      }
+    },
+    {
+      "command_id": "opening.inspect.output",
+      "command_type": "failure.inspect",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 0,
+      "idempotency_key": "opening.inspect.output.v1",
+      "payload": {
+        "failure": {
+          "action": "Inspect",
+          "data": {
+            "evidence_id": "evidence.opening.output",
+            "component_id": "component.output_conveyor",
+            "diagnostic_capability_bps": 10000
+          }
+        }
+      }
+    },
+    {
+      "command_id": "opening.diagnose.feed",
+      "command_type": "failure.diagnose",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 0,
+      "idempotency_key": "opening.diagnose.feed.v1",
+      "payload": {
+        "failure": {
+          "action": "Diagnose",
+          "data": {
+            "diagnosis_id": "diagnosis.opening.feed",
+            "component_id": "component.feed_conveyor",
+            "candidate_fault_type_id": "fault.motor_bearing_seizure",
+            "fault_instance_id": null,
+            "evidence_ids": [
+              "evidence.opening.feed"
+            ],
+            "diagnostic_capability_bps": 10000
+          }
+        }
+      }
+    },
+    {
+      "command_id": "opening.repair.belt",
+      "command_type": "failure.intervene",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 0,
+      "idempotency_key": "opening.repair.belt.v1",
+      "payload": {
+        "failure": {
+          "action": "Intervene",
+          "data": {
+            "intervention_id": "intervention.opening.belt",
+            "component_id": "component.output_conveyor",
+            "kind": "Repair",
+            "fault_instance_id": "fault.instance.opening.output_belt",
+            "derate_bps": null,
+            "bypass": null
+          }
+        }
+      }
+    },
+    {
+      "command_id": "opening.repair.motor",
+      "command_type": "failure.intervene",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 0,
+      "idempotency_key": "opening.repair.motor.v1",
+      "payload": {
+        "failure": {
+          "action": "Intervene",
+          "data": {
+            "intervention_id": "intervention.opening.motor",
+            "component_id": "component.feed_conveyor",
+            "kind": "Repair",
+            "fault_instance_id": "fault.instance.opening.feed_motor",
+            "derate_bps": null,
+            "bypass": null
+          }
+        }
+      }
+    },
+    {
+      "command_id": "opening.production.first",
+      "command_type": "material.production",
+      "schema_version": "schema-0.1.0",
+      "rules_version": "rules-0.1.0",
+      "effective_time_ms": 0,
+      "idempotency_key": "opening.production.first.v1",
+      "payload": {
+        "material": {
+          "ExecuteProduction": {
+            "run_id": "run.opening.first",
+            "recipe_id": "recipe.aggregate_crush",
+            "facility_id": "facility.aggregate_plant_fixture",
+            "input_sources": [
+              {
+                "resource_id": "resource.raw_feed",
+                "store_id": "inventory.aggregate_feed"
+              },
+              {
+                "resource_id": "resource.limestone",
+                "store_id": "inventory.aggregate_feed"
+              }
+            ],
+            "output_inventory_id": "inventory.aggregate_finished",
+            "requested_runs": 100
+          }
+        }
+      }
+    }
+  ],
+  "expected": {
+    "initial_digest": "ad63b0bdef908e82e3363699da14adc0f4fe3b2e0f4058309be22516d463b659",
+    "partial_recovery_digest": "750aa14241c8b4b4a1c89ddff0c563809daa2074a8929fb0aa9c92c68818fcad",
+    "final_digest": "723118552eb7ef1830d6e790ac48b3ef10c30122d6cd431854ce0a8bc71a476d",
+    "effective_capacity": 3,
+    "accepted_runs": 3,
+    "finished_aggregate_quantity": 24,
+    "event_types": [
+      "failure",
+      "failure",
+      "failure",
+      "failure",
+      "failure",
+      "material"
+    ]
+  }
+}

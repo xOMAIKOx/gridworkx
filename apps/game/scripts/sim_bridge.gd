@@ -56,6 +56,9 @@ func _invoke(method: StringName, arguments: Array) -> Dictionary:
 func bridge_metadata() -> Dictionary:
 	return _invoke(&"bridge_metadata", [])
 
+func create_scenario(scenario_id: String, seed: int) -> Dictionary:
+	return _invoke(&"create_scenario", [scenario_id, seed])
+
 func create_snapshot(seed: int) -> Dictionary:
 	return _invoke(&"create_snapshot", [seed])
 

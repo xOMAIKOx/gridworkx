@@ -2,8 +2,9 @@
 
 use godot::prelude::*;
 use gridworks_sim::{
-    advance, advance_to, execute, FailureError, KernelError, SimulationState, Transition,
-    KERNEL_REVISION, RNG_ALGORITHM, RULES_VERSION, SCHEMA_VERSION,
+    advance, advance_to, execute, opening_aggregate_scenario, FailureError, KernelError,
+    SimulationState, Transition, KERNEL_REVISION, OPENING_AGGREGATE_SCENARIO_ID, RNG_ALGORITHM,
+    RULES_VERSION, SCHEMA_VERSION,
 };
 use serde_json::{json, Value};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -155,6 +156,28 @@ impl GridworksSimBridge {
                 "rules_version": RULES_VERSION,
                 "kernel_revision": KERNEL_REVISION,
                 "rng_algorithm": RNG_ALGORITHM,
+            }))
+        })
+    }
+
+    #[func]
+    fn create_scenario(&self, scenario_id: GString, seed: i64) -> GString {
+        guarded("scenario.create", || {
+            if seed <= 0 {
+                return Err(error("bridge.invalid_seed", "seed must be positive"));
+            }
+            if scenario_id.to_string() != OPENING_AGGREGATE_SCENARIO_ID {
+                return Err(error(
+                    "bridge.unknown_scenario",
+                    "scenario ID is unsupported",
+                ));
+            }
+            let state = opening_aggregate_scenario(seed as u64).map_err(map_error)?;
+            Ok(json!({
+                "scenario_id": OPENING_AGGREGATE_SCENARIO_ID,
+                "snapshot": state.to_json().map_err(map_error)?,
+                "digest": state.digest().map_err(map_error)?,
+                "events": [],
             }))
         })
     }

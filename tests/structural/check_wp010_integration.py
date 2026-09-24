@@ -40,7 +40,7 @@ if "xvfb-run -a" not in workflow or "--path apps/game --import --rendering-metho
 if "--headless --path apps/game --import" in workflow or "--editor" in workflow or "--quit-after" in workflow or "-eq 134" in workflow or "discovery_status" in workflow:
     raise SystemExit("WP-010 CI must use strict Xvfb import discovery without forced editor exit or abort whitelist")
 bridge_source = (bridge / "src/lib.rs").read_text()
-for method in ["advance_to_snapshot", "evaluate_facility", "validate_digest"]:
+for method in ["create_scenario", "advance_to_snapshot", "evaluate_facility", "validate_digest"]:
     if method not in bridge_source:
         raise SystemExit(f"WP-010 bridge is missing required method: {method}")
 if "catch_unwind" not in bridge_source:
