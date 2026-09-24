@@ -4,31 +4,46 @@ use std::fmt::{Display, Formatter};
 
 pub const PROGRESSION_VERSION: &str = "progression-0.1.0";
 pub const MAX_BPS: u16 = 10_000;
-pub const PLAYER_SKILL_IDS: [&str; 12] = [
-    "skill.mechanical",
-    "skill.electrical",
-    "skill.process_engineering",
-    "skill.agriculture",
-    "skill.mining",
-    "skill.energy",
-    "skill.water",
-    "skill.logistics",
-    "skill.construction",
-    "skill.commerce",
-    "skill.finance",
-    "skill.management",
-];
-pub const MANAGER_SKILL_IDS: [&str; 9] = [
-    "manager_skill.operations",
-    "manager_skill.technical",
-    "manager_skill.maintenance",
-    "manager_skill.safety",
-    "manager_skill.leadership",
-    "manager_skill.logistics",
-    "manager_skill.energy_efficiency",
-    "manager_skill.crisis_response",
-    "manager_skill.mentoring",
-];
+const SHARED_CONTENT: &str = include_str!("../../../packages/content/config/skills-managers.json");
+
+#[derive(Debug, Clone, Deserialize)]
+struct SharedContent {
+    progression_version: String,
+    player_skills: Vec<SkillDefinition>,
+    manager_skills: Vec<String>,
+    rarity_policy: BTreeMap<String, RarityPolicy>,
+    traits: Vec<ContentTrait>,
+    anti_grind: AntiGrindPolicy,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct RarityPolicy {
+    potential_bps: u16,
+    trait_capacity: usize,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct ContentTrait {
+    trait_id: String,
+    effects: BTreeMap<String, i16>,
+}
+fn shared_content() -> SharedContent {
+    let content: SharedContent =
+        serde_json::from_str(SHARED_CONTENT).expect("skills/manager content must be valid");
+    assert_eq!(
+        content.progression_version, PROGRESSION_VERSION,
+        "progression content version drift"
+    );
+    content
+}
+pub fn player_skill_ids() -> Vec<String> {
+    shared_content()
+        .player_skills
+        .into_iter()
+        .map(|skill| skill.skill_id)
+        .collect()
+}
+pub fn manager_skill_ids() -> Vec<String> {
+    shared_content().manager_skills
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProgressionError {
@@ -41,6 +56,7 @@ pub enum ProgressionError {
     DuplicateSource(String),
     InvalidBps(u16),
     MissingManagerSkill(String),
+    InvalidState(String),
 }
 impl Display for ProgressionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -65,21 +81,9 @@ pub struct SkillDefinition {
     pub rules_version: String,
 }
 pub fn player_skill_registry() -> Vec<SkillDefinition> {
-    PLAYER_SKILL_IDS
-        .iter()
-        .map(|id| SkillDefinition {
-            skill_id: (*id).to_owned(),
-            label_key: format!("label.{id}"),
-            activity_classes: vec![
-                "diagnosis".to_owned(),
-                "repair".to_owned(),
-                "production".to_owned(),
-            ],
-            progression_curve: "curve.linear-capped-v1".to_owned(),
-            rules_version: PROGRESSION_VERSION.to_owned(),
-        })
-        .collect()
+    shared_content().player_skills
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AntiGrindPolicy {
@@ -89,13 +93,9 @@ pub struct AntiGrindPolicy {
     pub meaningful_multiplier_bps: u16,
 }
 pub fn anti_grind_policy() -> AntiGrindPolicy {
-    AntiGrindPolicy {
-        policy_id: "policy.progression.anti_grind".to_owned(),
-        version: PROGRESSION_VERSION.to_owned(),
-        trivial_multipliers_bps: vec![10_000, 5_000, 2_500, 0],
-        meaningful_multiplier_bps: 10_000,
-    }
+    shared_content().anti_grind
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SkillActivityEvent {
@@ -141,7 +141,9 @@ pub fn apply_player_skill_event(
     if state.player_id != event.player_id {
         return Err(ProgressionError::InvalidIdentifier(event.player_id.clone()));
     }
-    if state.skill_id != event.skill_id || !PLAYER_SKILL_IDS.contains(&event.skill_id.as_str()) {
+    if state.skill_id != event.skill_id
+        || !player_skill_ids().iter().any(|id| id == &event.skill_id)
+    {
         return Err(ProgressionError::UnknownSkill(event.skill_id.clone()));
     }
     if event.source_event_id.is_empty() || event.repetition_key.is_empty() {
@@ -248,15 +250,16 @@ pub fn manager_potential_cap(
     rarity: ManagerRarity,
     skill_id: &str,
 ) -> Result<u16, ProgressionError> {
-    if !MANAGER_SKILL_IDS.contains(&skill_id) {
+    if !manager_skill_ids().iter().any(|id| id == skill_id) {
         return Err(ProgressionError::MissingManagerSkill(skill_id.to_owned()));
     }
-    Ok(match rarity {
-        ManagerRarity::Bronze => 5_000,
-        ManagerRarity::Silver => 6_500,
-        ManagerRarity::Gold => 8_500,
-        ManagerRarity::Platinum => 10_000,
-    })
+    let policy = shared_content();
+    let key = format!("{rarity:?}");
+    policy
+        .rarity_policy
+        .get(&key)
+        .map(|value| value.potential_bps)
+        .ok_or(ProgressionError::InvalidVersion)
 }
 pub fn manager_level_from_xp(xp: u64) -> u32 {
     ((xp / 1000) as u32).saturating_add(1)
@@ -287,25 +290,17 @@ pub struct TraitDefinition {
     pub rules_version: String,
 }
 pub fn manager_trait_definitions() -> Vec<TraitDefinition> {
-    [
-        ("trait.aggressive_operator", 100i16),
-        ("trait.maintenance_first", 250),
-        ("trait.cost_cutter", 0),
-        ("trait.mentor", 150),
-        ("trait.crisis_specialist", 500),
-    ]
-    .into_iter()
-    .map(|(id, effect)| {
-        let mut effects = BTreeMap::new();
-        effects.insert("diagnostic_capability_bps".to_owned(), effect);
-        TraitDefinition {
-            trait_id: id.to_owned(),
-            effects,
+    shared_content()
+        .traits
+        .into_iter()
+        .map(|trait_def| TraitDefinition {
+            trait_id: trait_def.trait_id,
+            effects: trait_def.effects,
             rules_version: PROGRESSION_VERSION.to_owned(),
-        }
-    })
-    .collect()
+        })
+        .collect()
 }
+
 pub fn bounded_fatigue_modifier(fatigue_bps: u16) -> Result<u16, ProgressionError> {
     if fatigue_bps > MAX_BPS {
         return Err(ProgressionError::InvalidBps(fatigue_bps));
@@ -321,6 +316,19 @@ pub fn effective_diagnostic_capability(
     }
     let mut total = u32::from(player_skill_bps) * 6 / 10;
     if let Some(manager) = manager {
+        let rarity_key = format!("{:?}", manager.rarity);
+        let content = shared_content();
+        if content
+            .rarity_policy
+            .get(&rarity_key)
+            .map(|policy| policy.trait_capacity)
+            .unwrap_or(0)
+            < manager.traits.len()
+        {
+            return Err(ProgressionError::InvalidState(
+                "manager trait capacity exceeded".to_owned(),
+            ));
+        }
         if manager.workload_bps > MAX_BPS
             || manager.fatigue_bps > MAX_BPS
             || manager.morale_bps > MAX_BPS
@@ -379,7 +387,7 @@ fn fixture_manager(
         specialization_id: "specialization.aggregate_diagnostics".to_owned(),
         total_xp: 0,
         level: 1,
-        skills: MANAGER_SKILL_IDS
+        skills: manager_skill_ids()
             .iter()
             .map(|skill_id| ManagerSkillState {
                 skill_id: (*skill_id).to_owned(),
@@ -507,25 +515,29 @@ mod tests {
         );
     }
     #[test]
-    fn capability_changes_confidence_not_observation_identity() {
+    fn capability_changes_diagnosis_confidence_not_observation_identity() {
         let facilities = vec![aggregate_plant_fixture()];
-        let mut state = FailureState::with_definitions(crate::aggregate_fault_definitions());
-        state
-            .apply(
-                &facilities,
-                &FailureCommand::ActivateFault {
-                    fault_instance_id: "fault.instance.fixture".to_owned(),
-                    fault_type_id: "fault.motor_bearing_seizure".to_owned(),
-                    component_id: "component.feed_conveyor".to_owned(),
-                    severity_bps: 10_000,
-                },
-                0,
-                crate::RULES_VERSION,
-            )
-            .unwrap();
         let low = effective_diagnostic_capability(1000, Some(&fresh_platinum_fixture())).unwrap();
         let high = effective_diagnostic_capability(4000, Some(&veteran_gold_fixture())).unwrap();
-        let low_event = state
+        fn activate(facilities: &[crate::Facility]) -> FailureState {
+            let mut state = FailureState::with_definitions(crate::aggregate_fault_definitions());
+            state
+                .apply(
+                    facilities,
+                    &FailureCommand::ActivateFault {
+                        fault_instance_id: "fault.instance.fixture".to_owned(),
+                        fault_type_id: "fault.motor_bearing_seizure".to_owned(),
+                        component_id: "component.feed_conveyor".to_owned(),
+                        severity_bps: 10_000,
+                    },
+                    0,
+                    crate::RULES_VERSION,
+                )
+                .unwrap();
+            state
+        }
+        let mut low_state = activate(&facilities);
+        let low_event = low_state
             .apply(
                 &facilities,
                 &FailureCommand::Inspect {
@@ -537,7 +549,7 @@ mod tests {
                 crate::RULES_VERSION,
             )
             .unwrap();
-        let identity = match low_event {
+        let symptom = match low_event {
             crate::FailureEvent::EvidenceObserved {
                 symptom_id,
                 observation,
@@ -548,7 +560,27 @@ mod tests {
             }
             _ => panic!("wrong event"),
         };
-        let high_event = state
+        let low_diagnosis = low_state
+            .apply(
+                &facilities,
+                &FailureCommand::Diagnose {
+                    diagnosis_id: "diagnosis.low".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    candidate_fault_type_id: "fault.motor_bearing_seizure".to_owned(),
+                    fault_instance_id: None,
+                    evidence_ids: vec!["evidence.low".to_owned()],
+                    diagnostic_capability_bps: low,
+                },
+                0,
+                crate::RULES_VERSION,
+            )
+            .unwrap();
+        let low_confidence = match low_diagnosis {
+            crate::FailureEvent::DiagnosisUpdated { confidence_bps, .. } => confidence_bps,
+            _ => panic!("wrong diagnosis event"),
+        };
+        let mut high_state = activate(&facilities);
+        let high_event = high_state
             .apply(
                 &facilities,
                 &FailureCommand::Inspect {
@@ -566,11 +598,31 @@ mod tests {
                 observation,
                 ..
             } => {
-                assert_eq!(symptom_id, identity);
+                assert_eq!(symptom_id, symptom);
                 assert_eq!(observation, Observation::Observed);
             }
             _ => panic!("wrong event"),
         }
+        let high_diagnosis = high_state
+            .apply(
+                &facilities,
+                &FailureCommand::Diagnose {
+                    diagnosis_id: "diagnosis.high".to_owned(),
+                    component_id: "component.feed_conveyor".to_owned(),
+                    candidate_fault_type_id: "fault.motor_bearing_seizure".to_owned(),
+                    fault_instance_id: None,
+                    evidence_ids: vec!["evidence.high".to_owned()],
+                    diagnostic_capability_bps: high,
+                },
+                0,
+                crate::RULES_VERSION,
+            )
+            .unwrap();
+        let high_confidence = match high_diagnosis {
+            crate::FailureEvent::DiagnosisUpdated { confidence_bps, .. } => confidence_bps,
+            _ => panic!("wrong diagnosis event"),
+        };
         assert!(high >= low);
+        assert!(high_confidence > low_confidence);
     }
 }

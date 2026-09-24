@@ -1,9 +1,9 @@
 ENGINEERING HANDBACK
 
-Work package: WP-012 R1
+Work package: WP-012 R2 remediation of R1
 Work order: `docs/work-orders/WP-012_SKILLS_MANAGER_DOMAIN.md`
 Directive: `docs/engineering/directives/WP-012_R1_SKILLS_MANAGER_DOMAIN.md`
-Directive commit: `db42f32f59c24f23364c6e6afe848b416ce12511`
+Directive commit: `ac980875ee35ee2ca513a11a5998b2276293f453`
 Execution agent: Devin
 Worker model: GPT-5.6 Luna
 Worker effort: XHigh
@@ -11,7 +11,7 @@ Implementation class: D2 — bounded complex
 
 Repository / branch: `xOMAIKOx/gridworkx` / `engineering/wp-012-skills-managers`
 Exact parent: `466faa05ad24d0dc1af35a1fa3d71a04e8920961`
-Implementation commit: `274287f2b88917f5e7d06edab91e0046c5af7895`
+R2 implementation commits: current remediation changes after `274287f2b88917f5e7d06edab91e0046c5af7895`; exact list and final HEAD are recorded by the canonical GitHub receipts
 Final HEAD: exact handback commit SHA is recorded by the canonical issue #26 and PR #27 receipts.
 Draft PR: https://github.com/xOMAIKOx/gridworkx/pull/27
 
@@ -72,3 +72,17 @@ Recruitment and manager-market behavior remain WP-013/later scope. No host/deplo
 Deviations: local toolchain/live-PG/full-history security environment limitations are documented above; no accepted gate was weakened.
 
 Final state: READY FOR SOL/PRO REVIEW
+
+
+## R2 remediation closure
+
+- R2-01: shared content/config is authoritative; Rust embedded content and Go generated content are drift-tested against the canonical JSON.
+- R2-02: Go trusted progression rejects unknown activity/version, uses checked arithmetic and fails closed on overflow; boundary tests added.
+- R2-03: trusted manager progression updates manager XP/level/skill atomically with potential caps and progression event persistence.
+- R2-04: player/manager/employment/assignment mutations use durable progression receipts, deterministic replay and changed-payload conflict semantics.
+- R2-05: employment/assignment SQL is append-close, immutable after close, no-delete, and assignment company must match active employer.
+- R2-06: Rust WP-004 integration now proves diagnosis confidence differs by capability while symptom identity remains unchanged.
+- R2-07: traits are shared semantic vectors with non-diagnostic trade-off dimensions and rarity trait-capacity enforcement.
+- R2-08: focused drift, overflow, replay, manager-cap, repository, API and SQL-integrity tests are included.
+
+Live PostgreSQL 18 remains `BLOCKED_DEPENDENCY` because no authorized native PG18 environment was available; repository-local migration and sqlmock evidence are not represented as live execution. Recruitment/WP-013 and all environment work remain untouched.

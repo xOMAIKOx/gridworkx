@@ -9,7 +9,7 @@ required_tables = [
 for table in required_tables:
     if f"gridworks.{table}" not in sql:
         raise SystemExit(f"WP-012 migration missing {table}")
-for token in ["append-only", "append-close", "manager_employment_active_uq", "manager_assignment_primary_active_uq", "request_digest"]:
+for token in ["append-only", "append-close", "manager_employment_active_uq", "manager_assignment_primary_active_uq", "manager_assignment_employer_guard", "manager_employment_append_close", "manager_assignment_append_close", "request_digest"]:
     if token not in sql:
         raise SystemExit(f"WP-012 migration missing integrity contract: {token}")
 if "REFERENCES gridworks.players" not in sql or "REFERENCES gridworks.companies" not in sql:

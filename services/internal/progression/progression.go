@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-const Version = "progression-0.1.0"
+const Version = SharedProgressionVersion
 
 var ErrInvalidView = errors.New("invalid progression view")
 

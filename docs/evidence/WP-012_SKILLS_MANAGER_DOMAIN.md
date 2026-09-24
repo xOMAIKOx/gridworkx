@@ -79,3 +79,16 @@ API and sqlmock tests cover authenticated reads, owner rejection, deterministic 
 - Live PostgreSQL 18 execution: `BLOCKED_DEPENDENCY` — no authorized native PG18 environment was available. Repository-local migration/repository/sqlmock proof is complete; no fake live-DB claim is made.
 
 No host, deployment, provider, database provisioning, port, proxy, systemd or container mutation occurred.
+
+
+## R2 integrity remediation
+
+R2 makes `packages/content/config/skills-managers.json` authoritative for player-skill metadata, manager skill IDs, rarity potential/trait capacities, trait semantic vectors and anti-grind policy. Rust embeds and validates the shared content; Go has a generated representation with a repository drift test.
+
+Trusted Go progression now rejects unknown activity classes/inapplicable activity kinds/version drift, uses checked arithmetic, and rejects overflow before persistence. Manager progression is an internal trusted operation with deterministic XP/level/skill-cap behavior, row locking and durable replay/conflict receipts.
+
+Employment and assignment mutations use durable request-digest receipts, append-close replay semantics and PostgreSQL row locks. Migration triggers freeze historical identity/content, forbid reopen/delete, and enforce assignment company equals active employer.
+
+The Rust WP-004 integration proof now exercises diagnosis confidence: low capability yields lower unresolved confidence while higher capability yields higher confidence, with the same underlying symptom identity and no fabricated evidence.
+
+Trait vectors preserve semantic trade-offs across diagnostic/workload/fatigue/morale dimensions and rarity trait-capacity validation prevents universal dominance from becoming a hidden multiplier.

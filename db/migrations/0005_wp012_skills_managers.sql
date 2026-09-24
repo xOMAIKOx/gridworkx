@@ -148,4 +148,50 @@ RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'assignment history
 DROP TRIGGER IF EXISTS manager_assignment_no_delete ON gridworks.manager_facility_assignments;
 CREATE TRIGGER manager_assignment_no_delete BEFORE DELETE ON gridworks.manager_facility_assignments FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_wp012_assignment_delete();
 
+
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_wp012_employment_rewrite()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.employment_id IS DISTINCT FROM OLD.employment_id OR NEW.manager_id IS DISTINCT FROM OLD.manager_id OR NEW.company_id IS DISTINCT FROM OLD.company_id OR NEW.role IS DISTINCT FROM OLD.role OR NEW.effective_from IS DISTINCT FROM OLD.effective_from OR NEW.source_ref IS DISTINCT FROM OLD.source_ref OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'employment history identity/content is immutable';
+    END IF;
+    IF OLD.state = 'closed' THEN
+        IF NEW.state IS DISTINCT FROM OLD.state OR NEW.effective_to IS DISTINCT FROM OLD.effective_to THEN RAISE EXCEPTION 'closed employment is immutable'; END IF;
+    ELSIF NEW.state = 'active' OR NEW.effective_to IS NULL THEN
+        IF NEW.state IS DISTINCT FROM OLD.state OR NEW.effective_to IS DISTINCT FROM OLD.effective_to THEN RAISE EXCEPTION 'employment may only close once'; END IF;
+    END IF;
+    RETURN NEW;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_wp012_assignment_rewrite()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.assignment_id IS DISTINCT FROM OLD.assignment_id OR NEW.manager_id IS DISTINCT FROM OLD.manager_id OR NEW.company_id IS DISTINCT FROM OLD.company_id OR NEW.facility_id IS DISTINCT FROM OLD.facility_id OR NEW.assignment_role IS DISTINCT FROM OLD.assignment_role OR NEW.effective_from IS DISTINCT FROM OLD.effective_from OR NEW.source_ref IS DISTINCT FROM OLD.source_ref THEN
+        RAISE EXCEPTION 'assignment history identity/content is immutable';
+    END IF;
+    IF OLD.active = false THEN
+        IF NEW.active IS DISTINCT FROM OLD.active OR NEW.effective_to IS DISTINCT FROM OLD.effective_to THEN RAISE EXCEPTION 'closed assignment is immutable'; END IF;
+    ELSIF NEW.active = true OR NEW.effective_to IS NULL THEN
+        IF NEW.active IS DISTINCT FROM OLD.active OR NEW.effective_to IS DISTINCT FROM OLD.effective_to THEN RAISE EXCEPTION 'assignment may only close once'; END IF;
+    END IF;
+    RETURN NEW;
+END
+$$;
+DROP TRIGGER IF EXISTS manager_assignment_append_close ON gridworks.manager_facility_assignments;
+CREATE TRIGGER manager_assignment_append_close BEFORE UPDATE ON gridworks.manager_facility_assignments FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_wp012_assignment_rewrite();
+
+CREATE OR REPLACE FUNCTION gridworks.validate_wp012_assignment_employer()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM gridworks.manager_employment_history WHERE manager_id=NEW.manager_id AND company_id=NEW.company_id AND state='active') THEN
+        RAISE EXCEPTION 'assignment company must match active manager employer';
+    END IF;
+    RETURN NEW;
+END
+$$;
+DROP TRIGGER IF EXISTS manager_assignment_employer_guard ON gridworks.manager_facility_assignments;
+CREATE TRIGGER manager_assignment_employer_guard BEFORE INSERT OR UPDATE ON gridworks.manager_facility_assignments FOR EACH ROW EXECUTE FUNCTION gridworks.validate_wp012_assignment_employer();
+
 COMMIT;
