@@ -110,6 +110,11 @@
       "schema_id": "schema.godot_bridge",
       "path": "godot-bridge.schema.json",
       "version": "0.1.0"
+    },
+    {
+      "schema_id": "schema.skills_manager_content",
+      "path": "skills-manager-content.schema.json",
+      "version": "0.1.0"
     }
   ]
 }

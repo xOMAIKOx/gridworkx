@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/skills-manager-content.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["config_id", "content_version", "progression_version", "player_skills", "manager_skills", "rarity_policy", "traits", "anti_grind"],
+  "properties": {
+    "config_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$"},
+    "content_version": {"type": "string"},
+    "progression_version": {"type": "string"},
+    "player_skills": {"type": "array", "minItems": 12, "items": {"type": "string"}},
+    "manager_skills": {"type": "array", "minItems": 9, "items": {"type": "string"}},
+    "rarity_policy": {"type": "object", "additionalProperties": {"type": "object", "required": ["potential_bps", "trait_capacity"], "properties": {"potential_bps": {"type": "integer", "minimum": 0, "maximum": 10000}, "trait_capacity": {"type": "integer", "minimum": 0}}, "additionalProperties": false}},
+    "traits": {"type": "array", "minItems": 5, "items": {"type": "object", "required": ["trait_id", "diagnostic_capability_bps"], "properties": {"trait_id": {"type": "string"}, "diagnostic_capability_bps": {"type": "integer", "minimum": -10000, "maximum": 10000}}, "additionalProperties": false}},
+    "anti_grind": {"type": "object", "required": ["policy_id", "trivial_multipliers_bps", "meaningful_multiplier_bps"], "properties": {"policy_id": {"type": "string"}, "trivial_multipliers_bps": {"type": "array", "minItems": 4, "items": {"type": "integer", "minimum": 0, "maximum": 10000}}, "meaningful_multiplier_bps": {"type": "integer", "minimum": 0, "maximum": 10000}}, "additionalProperties": false}
+  }
+}

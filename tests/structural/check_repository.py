@@ -15,6 +15,7 @@ REQUIRED_PATHS = [
     "db/migrations/0002_wp006_persistence_ledger.sql",
     "db/migrations/0003_wp007_identity_profile.sql",
     "db/migrations/0004_wp008_company_ownership.sql",
+    "db/migrations/0005_wp012_skills_managers.sql",
     "packages/schemas/openapi/gridworks-api-v1.json",
     "packages/schemas/godot-bridge.schema.json",
     "docs/evidence/WP-007_GUEST_FIRST_IDENTITY_PROFILE.md",

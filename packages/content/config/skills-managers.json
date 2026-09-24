@@ -1,0 +1,33 @@
+{
+  "config_id": "progression.skills_managers",
+  "content_version": "content-0.1.0",
+  "progression_version": "progression-0.1.0",
+  "player_skills": [
+    "skill.mechanical", "skill.electrical", "skill.process_engineering", "skill.agriculture",
+    "skill.mining", "skill.energy", "skill.water", "skill.logistics", "skill.construction",
+    "skill.commerce", "skill.finance", "skill.management"
+  ],
+  "manager_skills": [
+    "manager_skill.operations", "manager_skill.technical", "manager_skill.maintenance",
+    "manager_skill.safety", "manager_skill.leadership", "manager_skill.logistics",
+    "manager_skill.energy_efficiency", "manager_skill.crisis_response", "manager_skill.mentoring"
+  ],
+  "rarity_policy": {
+    "Bronze": {"potential_bps": 5000, "trait_capacity": 1},
+    "Silver": {"potential_bps": 6500, "trait_capacity": 2},
+    "Gold": {"potential_bps": 8500, "trait_capacity": 3},
+    "Platinum": {"potential_bps": 10000, "trait_capacity": 4}
+  },
+  "traits": [
+    {"trait_id": "trait.aggressive_operator", "diagnostic_capability_bps": 100},
+    {"trait_id": "trait.maintenance_first", "diagnostic_capability_bps": 250},
+    {"trait_id": "trait.cost_cutter", "diagnostic_capability_bps": 0},
+    {"trait_id": "trait.mentor", "diagnostic_capability_bps": 150},
+    {"trait_id": "trait.crisis_specialist", "diagnostic_capability_bps": 500}
+  ],
+  "anti_grind": {
+    "policy_id": "policy.progression.anti_grind",
+    "trivial_multipliers_bps": [10000, 5000, 2500, 0],
+    "meaningful_multiplier_bps": 10000
+  }
+}

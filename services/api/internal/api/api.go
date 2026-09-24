@@ -17,6 +17,7 @@ import (
 
 	"github.com/xOMAIKOx/gridworkx/services/internal/company"
 	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
+	"github.com/xOMAIKOx/gridworkx/services/internal/progression"
 )
 
 const MaxJSONBody = 1 << 20
@@ -133,6 +134,12 @@ type Repository interface {
 	Ping(context.Context) error
 }
 
+type ProgressionReadRepository interface {
+	GetPlayerSkills(context.Context, Principal) ([]progression.PlayerSkillView, error)
+	GetCompanyManagers(context.Context, Principal, string) ([]progression.ManagerView, error)
+	GetCompanyManager(context.Context, Principal, string, string) (progression.ManagerView, error)
+}
+
 type APIError struct {
 	Status  int
 	Code    string
@@ -172,10 +179,13 @@ var routeRegistry = []routeSpec{
 	{Method: http.MethodPost, Pattern: "/api/v1/auth/guest", Handler: func(s *Server) http.HandlerFunc { return s.guest }},
 	{Method: http.MethodDelete, Pattern: "/api/v1/auth/session", Handler: func(s *Server) http.HandlerFunc { return s.revoke }},
 	{Method: http.MethodGet, Pattern: "/api/v1/me", Handler: func(s *Server) http.HandlerFunc { return s.me }},
+	{Method: http.MethodGet, Pattern: "/api/v1/me/skills", Handler: func(s *Server) http.HandlerFunc { return s.skills }},
 	{Method: http.MethodPatch, Pattern: "/api/v1/me/profile", Handler: func(s *Server) http.HandlerFunc { return s.profile }},
 	{Method: http.MethodGet, Pattern: "/api/v1/players/{player_id}", Handler: func(s *Server) http.HandlerFunc { return s.player }},
 	{Method: http.MethodPost, Pattern: "/api/v1/companies", Handler: func(s *Server) http.HandlerFunc { return s.createCompany }},
 	{Method: http.MethodGet, Pattern: "/api/v1/companies/{company_id}", Handler: func(s *Server) http.HandlerFunc { return s.company }},
+	{Method: http.MethodGet, Pattern: "/api/v1/companies/{company_id}/managers", Handler: func(s *Server) http.HandlerFunc { return s.managers }},
+	{Method: http.MethodGet, Pattern: "/api/v1/companies/{company_id}/managers/{manager_id}", Handler: func(s *Server) http.HandlerFunc { return s.manager }},
 	{Method: http.MethodPost, Pattern: "/api/v1/company-groups", Handler: func(s *Server) http.HandlerFunc { return s.createGroup }},
 }
 
@@ -544,6 +554,63 @@ func (s *Server) createCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, v, true)
+}
+
+func (s *Server) skills(w http.ResponseWriter, r *http.Request) {
+	p, _, err := s.principal(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	repo, ok := s.Repo.(ProgressionReadRepository)
+	if !ok {
+		writeError(w, r, &APIError{Status: 500, Code: "progression.unavailable", Message: "progression read service is unavailable"})
+		return
+	}
+	views, err := repo.GetPlayerSkills(r.Context(), p)
+	if err != nil {
+		writeError(w, r, mapError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"skills": views}, true)
+}
+
+func (s *Server) managers(w http.ResponseWriter, r *http.Request) {
+	p, _, err := s.principal(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	repo, ok := s.Repo.(ProgressionReadRepository)
+	if !ok {
+		writeError(w, r, &APIError{Status: 500, Code: "progression.unavailable", Message: "progression read service is unavailable"})
+		return
+	}
+	views, err := repo.GetCompanyManagers(r.Context(), p, r.PathValue("company_id"))
+	if err != nil {
+		writeError(w, r, mapError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"managers": views}, true)
+}
+
+func (s *Server) manager(w http.ResponseWriter, r *http.Request) {
+	p, _, err := s.principal(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	repo, ok := s.Repo.(ProgressionReadRepository)
+	if !ok {
+		writeError(w, r, &APIError{Status: 500, Code: "progression.unavailable", Message: "progression read service is unavailable"})
+		return
+	}
+	view, err := repo.GetCompanyManager(r.Context(), p, r.PathValue("company_id"), r.PathValue("manager_id"))
+	if err != nil {
+		writeError(w, r, mapError(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, view, true)
 }
 
 func (s *Server) company(w http.ResponseWriter, r *http.Request) {

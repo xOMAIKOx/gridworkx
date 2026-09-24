@@ -1,0 +1,26 @@
+{
+  "progression_version": "progression-0.1.0",
+  "player": {
+    "player_id": "player.fixture",
+    "skill_id": "skill.mechanical",
+    "trivial_awards": [100, 50, 25, 0],
+    "duplicate_award": 0,
+    "cumulative_xp": 175,
+    "proficiency_bps": 1750
+  },
+  "manager": {
+    "gold_current_technical_bps": 8000,
+    "gold_potential_bps": 8500,
+    "platinum_current_technical_bps": 1000,
+    "platinum_potential_bps": 10000,
+    "gold_cap_after_request_bps": 8500,
+    "gold_diagnostic_capability_bps": 7460,
+    "platinum_diagnostic_capability_bps": 3000,
+    "fatigue_reduces_contribution": true
+  },
+  "observation": {
+    "symptom_id": "symptom.abnormal_vibration",
+    "low_capability_observation": "Unknown",
+    "high_capability_observation": "Observed"
+  }
+}

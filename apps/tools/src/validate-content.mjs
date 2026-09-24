@@ -31,6 +31,7 @@ for (const fileName of [
   "company-public-profile.schema.json",
   "godot-bridge.schema.json",
   "simulation-state.schema.json",
+  "skills-manager-content.schema.json",
 ]) {
   ajv.addSchema(readJson(path.join(schemaRoot, fileName)));
 }
@@ -67,10 +68,12 @@ const domainCatalog = readJson(path.join(contentRoot, "domain-catalog.json"));
 const contentManifest = readJson(path.join(contentRoot, "content-manifest.json"));
 const faultDefinitions = readJson(path.join(contentRoot, "config", "faults.json"));
 const materialDefinitions = readJson(path.join(contentRoot, "config", "materials.json"));
+const skillsManagerDefinitions = readJson(path.join(contentRoot, "config", "skills-managers.json"));
 validate("https://gridworks.example/schema/domain-catalog.schema.json", domainCatalog, "domain catalog");
 validate("https://gridworks.example/schema/fault-definitions.schema.json", faultDefinitions, "fault definitions");
 validate("https://gridworks.example/schema/material-state.schema.json", { resources: materialDefinitions.resources, recipes: materialDefinitions.recipes, inventories: [] }, "material definitions");
 validate("https://gridworks.example/schema/content-manifest.schema.json", contentManifest, "content manifest");
+validate("https://gridworks.example/schema/skills-manager-content.schema.json", skillsManagerDefinitions, "skills/manager definitions");
 assertUnique(domainCatalog.domains.map((domain) => domain.domain_id), "domain catalog");
 assertUnique(contentManifest.bundles.map((bundle) => bundle.bundle_id), "content manifest");
 
