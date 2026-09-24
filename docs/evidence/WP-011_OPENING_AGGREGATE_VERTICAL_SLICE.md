@@ -68,6 +68,13 @@ Committed expected values in the WP-011 fixture:
 
 Restart creates a fresh canonical scenario and restores the initial digest; it does not rewind a used snapshot. Bridge unavailable/error states are explicit and non-authoritative; no mock/fake simulation fallback exists.
 
+## R4 portrait overflow and visual-gate evidence
+
+- The portrait controller disables horizontal scrolling and uses a zero-width content minimum with expanding layout containers.
+- Diagnosis controls reflow to one column at 390×844; action controls use two columns; process nodes wrap through `FlowContainer`.
+- The executable controller test sets the viewport to 390×844 and asserts the horizontal scrollbar is hidden and content width is within the viewport.
+- CI asserts all five screenshots exist and exact dimensions using `file`/`grep`: four `390 x 844` images and one `1440 x 900` image.
+
 ## R3 presentation-state and responsive evidence
 
 - Guided state sequence is derived from canonical state: `opening.intro` → `opening.inspect` → `opening.diagnose` → `opening.intervene` → `opening.produce` → `opening.complete`.
