@@ -97,4 +97,6 @@ Live PostgreSQL 18 remains `BLOCKED_DEPENDENCY` because no authorized native PG1
 - R3-05: employment/assignment lifecycle includes immutable append-close triggers, active-employer matching and assignment-aware employment close prevention.
 - R3-06: focused domain, drift, migration and repository/API tests are present; exact-head CI is authoritative.
 
-R3 implementation commits are the remediation changes after `d3309a4cdbd8393142278d7a5d25176190ac06c4`; the final exact commit and CI receipts are recorded by the canonical GitHub pointers.
+R3 implementation commits: `378084b`, `2f77e34`, `f0dcc01`.
+R3 final HEAD before this handback update: `f0dcc01d26215433fb5666524d90d0b3967c60a5`.
+Final handback HEAD and final CI receipts are recorded by the canonical GitHub pointers.
