@@ -683,6 +683,9 @@ func (r *Repository) CloseManagerEmployment(ctx context.Context, employmentID, s
 	if err := tx.QueryRowContext(ctx, `SELECT manager_id FROM gridworks.manager_employment_history WHERE employment_id=$1 FOR UPDATE`, employmentID).Scan(&managerID); err != nil {
 		return mapDB(err)
 	}
+	if err := tx.QueryRowContext(ctx, `SELECT manager_id FROM gridworks.managers WHERE manager_id=$1 FOR UPDATE`, managerID).Scan(new(string)); err != nil {
+		return mapDB(err)
+	}
 	var activeAssignments int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM gridworks.manager_facility_assignments WHERE manager_id=$1 AND active`, managerID).Scan(&activeAssignments); err != nil {
 		return mapDB(err)
