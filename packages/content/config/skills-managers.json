@@ -1,0 +1,220 @@
+{
+  "config_id": "progression.skills_managers",
+  "content_version": "content-0.1.0",
+  "progression_version": "progression-0.1.0",
+  "player_skills": [
+    {
+      "skill_id": "skill.mechanical",
+      "label_key": "label.skill.mechanical",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.electrical",
+      "label_key": "label.skill.electrical",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.process_engineering",
+      "label_key": "label.skill.process_engineering",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.agriculture",
+      "label_key": "label.skill.agriculture",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.mining",
+      "label_key": "label.skill.mining",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.energy",
+      "label_key": "label.skill.energy",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.water",
+      "label_key": "label.skill.water",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.logistics",
+      "label_key": "label.skill.logistics",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.construction",
+      "label_key": "label.skill.construction",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.commerce",
+      "label_key": "label.skill.commerce",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.finance",
+      "label_key": "label.skill.finance",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    },
+    {
+      "skill_id": "skill.management",
+      "label_key": "label.skill.management",
+      "activity_classes": [
+        "diagnosis",
+        "repair",
+        "production"
+      ],
+      "progression_curve": "curve.linear-capped-v1",
+      "rules_version": "progression-0.1.0"
+    }
+  ],
+  "manager_skills": [
+    "manager_skill.operations",
+    "manager_skill.technical",
+    "manager_skill.maintenance",
+    "manager_skill.safety",
+    "manager_skill.leadership",
+    "manager_skill.logistics",
+    "manager_skill.energy_efficiency",
+    "manager_skill.crisis_response",
+    "manager_skill.mentoring"
+  ],
+  "rarity_policy": {
+    "Bronze": {
+      "potential_bps": 5000,
+      "trait_capacity": 1
+    },
+    "Silver": {
+      "potential_bps": 6500,
+      "trait_capacity": 2
+    },
+    "Gold": {
+      "potential_bps": 8500,
+      "trait_capacity": 3
+    },
+    "Platinum": {
+      "potential_bps": 10000,
+      "trait_capacity": 4
+    }
+  },
+  "traits": [
+    {
+      "trait_id": "trait.aggressive_operator",
+      "effects": {
+        "diagnostic_capability_bps": 100,
+        "fatigue_contribution_bps": 300
+      }
+    },
+    {
+      "trait_id": "trait.maintenance_first",
+      "effects": {
+        "diagnostic_capability_bps": 250,
+        "fatigue_contribution_bps": -250
+      }
+    },
+    {
+      "trait_id": "trait.cost_cutter",
+      "effects": {
+        "diagnostic_capability_bps": 0,
+        "workload_contribution_bps": -300
+      }
+    },
+    {
+      "trait_id": "trait.mentor",
+      "effects": {
+        "diagnostic_capability_bps": 150,
+        "morale_contribution_bps": 250
+      }
+    },
+    {
+      "trait_id": "trait.crisis_specialist",
+      "effects": {
+        "diagnostic_capability_bps": 500,
+        "workload_contribution_bps": 400
+      }
+    }
+  ],
+  "anti_grind": {
+    "policy_id": "policy.progression.anti_grind",
+    "trivial_multipliers_bps": [
+      10000,
+      5000,
+      2500,
+      0
+    ],
+    "meaningful_multiplier_bps": 10000,
+    "version": "progression-0.1.0"
+  },
+  "manager_progression": {
+    "level_xp_per_level": 1000,
+    "skill_bps_per_xp": 1
+  }
+}

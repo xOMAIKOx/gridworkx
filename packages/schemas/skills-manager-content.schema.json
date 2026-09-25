@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gridworks.example/schema/skills-manager-content.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "config_id",
+    "content_version",
+    "progression_version",
+    "player_skills",
+    "manager_skills",
+    "rarity_policy",
+    "traits",
+    "anti_grind",
+    "manager_progression"
+  ],
+  "properties": {
+    "config_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9][a-z0-9_-]*)+$"
+    },
+    "content_version": {
+      "type": "string"
+    },
+    "progression_version": {
+      "type": "string"
+    },
+    "player_skills": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": [
+          "skill_id",
+          "label_key",
+          "activity_classes",
+          "progression_curve",
+          "rules_version"
+        ],
+        "properties": {
+          "skill_id": {
+            "type": "string"
+          },
+          "label_key": {
+            "type": "string"
+          },
+          "activity_classes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "progression_curve": {
+            "type": "string"
+          },
+          "rules_version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "manager_skills": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "type": "string"
+      }
+    },
+    "rarity_policy": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "potential_bps",
+          "trait_capacity"
+        ],
+        "properties": {
+          "potential_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "trait_capacity": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "minProperties": 4,
+      "maxProperties": 4
+    },
+    "traits": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": [
+          "trait_id",
+          "effects"
+        ],
+        "properties": {
+          "trait_id": {
+            "type": "string"
+          },
+          "effects": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": -10000,
+              "maximum": 10000
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "anti_grind": {
+      "type": "object",
+      "required": [
+        "policy_id",
+        "trivial_multipliers_bps",
+        "meaningful_multiplier_bps",
+        "version"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "trivial_multipliers_bps": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "meaningful_multiplier_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "manager_progression": {
+      "type": "object",
+      "required": [
+        "level_xp_per_level",
+        "skill_bps_per_xp"
+      ],
+      "properties": {
+        "level_xp_per_level": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skill_bps_per_xp": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

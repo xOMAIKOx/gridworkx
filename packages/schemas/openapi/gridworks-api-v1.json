@@ -346,6 +346,180 @@
           }
         },
         "additionalProperties": false
+      },
+      "PlayerSkill": {
+        "type": "object",
+        "required": [
+          "player_id",
+          "skill_id",
+          "cumulative_xp",
+          "proficiency_bps",
+          "progression_version"
+        ],
+        "properties": {
+          "player_id": {
+            "type": "string"
+          },
+          "skill_id": {
+            "type": "string"
+          },
+          "cumulative_xp": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "proficiency_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "progression_version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SkillsResponse": {
+        "type": "object",
+        "required": [
+          "skills"
+        ],
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerSkill"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManagerSkill": {
+        "type": "object",
+        "required": [
+          "skill_id",
+          "proficiency_bps",
+          "potential_bps"
+        ],
+        "properties": {
+          "skill_id": {
+            "type": "string"
+          },
+          "proficiency_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "potential_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "additionalProperties": false
+      },
+      "Manager": {
+        "type": "object",
+        "required": [
+          "manager_id",
+          "display_name",
+          "rarity",
+          "specialization_id",
+          "total_xp",
+          "level",
+          "skills",
+          "traits",
+          "workload_bps",
+          "fatigue_bps",
+          "morale_bps",
+          "status",
+          "active_employment",
+          "potential_visible"
+        ],
+        "properties": {
+          "manager_id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "rarity": {
+            "enum": [
+              "Bronze",
+              "Silver",
+              "Gold",
+              "Platinum"
+            ]
+          },
+          "specialization_id": {
+            "type": "string"
+          },
+          "total_xp": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManagerSkill"
+            }
+          },
+          "traits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workload_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "fatigue_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "morale_bps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "status": {
+            "enum": [
+              "Active",
+              "Inactive"
+            ]
+          },
+          "active_employment": {
+            "type": "boolean"
+          },
+          "active_facility_id": {
+            "type": "string"
+          },
+          "potential_visible": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ManagersResponse": {
+        "type": "object",
+        "required": [
+          "managers"
+        ],
+        "properties": {
+          "managers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Manager"
+            }
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
@@ -1004,6 +1178,121 @@
             "$ref": "#/components/responses/Error"
           },
           "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/me/skills": {
+      "get": {
+        "summary": "Read current player skills",
+        "operationId": "SkillsResponse",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/companies/{company_id}/managers": {
+      "get": {
+        "summary": "Read owned company managers",
+        "operationId": "ManagersResponse",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/companies/{company_id}/managers/{manager_id}": {
+      "get": {
+        "summary": "Read owned company manager",
+        "operationId": "Manager",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CompanyID"
+          },
+          {
+            "name": "manager_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Manager"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
             "$ref": "#/components/responses/Error"
           }
         }

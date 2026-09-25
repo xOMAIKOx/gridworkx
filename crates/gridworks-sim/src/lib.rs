@@ -6,6 +6,7 @@ pub mod graph;
 pub mod ledger;
 pub mod material;
 pub mod persistence;
+pub mod progression;
 pub mod scenario;
 
 pub use failure::{
@@ -28,6 +29,13 @@ pub use material::{
     RecipeInput, RecipeOutput, ResourceCategory, ResourceDefinition, QUANTITY_SCALE,
 };
 pub use persistence::{CommandReceipt, ReceiptStatus, SnapshotRecord};
+pub use progression::{
+    anti_grind_policy, apply_player_skill_event, effective_diagnostic_capability,
+    fresh_platinum_fixture, manager_potential_cap, manager_trait_definitions,
+    player_skill_registry, veteran_gold_fixture, ActivityClass, ManagerRarity, ManagerSkillState,
+    ManagerState, ManagerStatus, PlayerSkillState, ProgressionError, SkillActivityEvent,
+    SkillDefinition, SkillProgressionResult, TraitDefinition, PROGRESSION_VERSION,
+};
 pub use scenario::{opening_aggregate_scenario, OPENING_AGGREGATE_SCENARIO_ID};
 
 pub const SCHEMA_VERSION: &str = "schema-0.1.0";

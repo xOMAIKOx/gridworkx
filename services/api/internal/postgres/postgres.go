@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/xOMAIKOx/gridworkx/services/api/internal/api"
 	"github.com/xOMAIKOx/gridworkx/services/internal/company"
 	"github.com/xOMAIKOx/gridworkx/services/internal/identity"
+	"github.com/xOMAIKOx/gridworkx/services/internal/progression"
 )
 
 type Entropy interface{ Read([]byte) (int, error) }
@@ -450,4 +452,433 @@ func (r *Repository) CreateGroup(ctx context.Context, p api.Principal, key strin
 		return api.CreatedEntity{}, err
 	}
 	return api.CreatedEntity{ID: id, Name: displayName}, nil
+}
+
+func (r *Repository) GetPlayerSkills(ctx context.Context, p api.Principal) ([]progression.PlayerSkillView, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx, `SELECT player_id,skill_id,cumulative_xp,proficiency_bps,progression_version FROM gridworks.player_skills WHERE player_id=$1 ORDER BY skill_id`, p.PlayerID)
+	if err != nil {
+		return nil, mapDB(err)
+	}
+	defer rows.Close()
+	views := make([]progression.PlayerSkillView, 0)
+	for rows.Next() {
+		var view progression.PlayerSkillView
+		if err := rows.Scan(&view.PlayerID, &view.SkillID, &view.CumulativeXP, &view.ProficiencyBPS, &view.ProgressionVersion); err != nil {
+			return nil, err
+		}
+		if err := progression.ValidatePlayerSkillView(view); err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return views, nil
+}
+
+func (r *Repository) authorizeCompany(ctx context.Context, p api.Principal, companyID string) error {
+	var owner bool
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM gridworks.company_ownership WHERE entity_id=$1 AND entity_type='company' AND owner_type='player' AND owner_id=$2 AND active)`, companyID, p.PlayerID).Scan(&owner)
+	if err != nil {
+		return mapDB(err)
+	}
+	if !owner {
+		return api.ErrForbidden
+	}
+	return nil
+}
+
+func (r *Repository) GetCompanyManagers(ctx context.Context, p api.Principal, companyID string) ([]progression.ManagerView, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := r.authorizeCompany(ctx, p, companyID); err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT m.manager_id,m.display_name,m.rarity,m.specialization_id,m.total_xp,m.level,m.workload_bps,m.fatigue_bps,m.morale_bps,m.status,COALESCE((SELECT jsonb_agg(jsonb_build_object('skill_id',ms.skill_id,'proficiency_bps',ms.proficiency_bps,'potential_bps',ms.potential_bps) ORDER BY ms.skill_id) FROM gridworks.manager_skills ms WHERE ms.manager_id=m.manager_id),'[]'::jsonb),COALESCE((SELECT jsonb_agg(mt.trait_id ORDER BY mt.trait_id) FROM gridworks.manager_traits mt WHERE mt.manager_id=m.manager_id),'[]'::jsonb),COALESCE((SELECT mfa.facility_id FROM gridworks.manager_facility_assignments mfa WHERE mfa.manager_id=m.manager_id AND mfa.active AND mfa.assignment_role='primary' ORDER BY mfa.effective_from DESC LIMIT 1),'') FROM gridworks.managers m JOIN gridworks.manager_employment_history eh ON eh.manager_id=m.manager_id AND eh.company_id=$1 AND eh.state='active' ORDER BY m.manager_id`, companyID)
+	if err != nil {
+		return nil, mapDB(err)
+	}
+	defer rows.Close()
+	views := make([]progression.ManagerView, 0)
+	for rows.Next() {
+		var view progression.ManagerView
+		var skillsJSON, traitsJSON []byte
+		if err := rows.Scan(&view.ManagerID, &view.DisplayName, &view.Rarity, &view.SpecializationID, &view.TotalXP, &view.Level, &view.WorkloadBPS, &view.FatigueBPS, &view.MoraleBPS, &view.Status, &skillsJSON, &traitsJSON, &view.ActiveFacilityID); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(skillsJSON, &view.Skills); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(traitsJSON, &view.Traits); err != nil {
+			return nil, err
+		}
+		view.ActiveEmployment = true
+		view.PotentialVisible = true
+		if err := progression.ValidateManagerView(view); err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return views, nil
+}
+
+func (r *Repository) GetCompanyManager(ctx context.Context, p api.Principal, companyID, managerID string) (progression.ManagerView, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := r.authorizeCompany(ctx, p, companyID); err != nil {
+		return progression.ManagerView{}, err
+	}
+	rows, err := r.GetCompanyManagers(ctx, p, companyID)
+	if err != nil {
+		return progression.ManagerView{}, err
+	}
+	for _, view := range rows {
+		if view.ManagerID == managerID {
+			return view, nil
+		}
+	}
+	return progression.ManagerView{}, api.ErrNotFound
+}
+
+func (r *Repository) ApplyPlayerSkillEvent(ctx context.Context, event progression.SkillEvent) (progression.SkillAward, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return progression.SkillAward{}, err
+	}
+	defer tx.Rollback()
+	if err := lockIdempotency(ctx, tx, "progression", event.SourceEventID); err != nil {
+		return progression.SkillAward{}, err
+	}
+	requestDigest := digest(strings.Join([]string{event.PlayerID, event.SkillID, event.ActivityKind, fmt.Sprint(event.BaseXP), string(event.ActivityClass), event.RepetitionKey, event.OccurrenceTime.UTC().Format(time.RFC3339Nano), event.RulesVersion}, "\x00"))
+	var existingAward int64
+	var storedDigest string
+	err = tx.QueryRowContext(ctx, `SELECT awarded_xp,request_digest FROM gridworks.player_skill_events WHERE source_event_id=$1 FOR UPDATE`, event.SourceEventID).Scan(&existingAward, &storedDigest)
+	if err == nil {
+		if storedDigest != requestDigest {
+			return progression.SkillAward{}, api.ErrConflict
+		}
+		var cumulative int64
+		var proficiency, repetitions int
+		if err := tx.QueryRowContext(ctx, `SELECT cumulative_xp,proficiency_bps,repetition_count FROM gridworks.player_skills WHERE player_id=$1 AND skill_id=$2`, event.PlayerID, event.SkillID).Scan(&cumulative, &proficiency, &repetitions); err != nil {
+			return progression.SkillAward{}, mapDB(err)
+		}
+		if err := tx.Commit(); err != nil {
+			return progression.SkillAward{}, err
+		}
+		return progression.SkillAward{AwardedXP: 0, CumulativeXP: cumulative, ProficiencyBPS: proficiency, RepetitionCount: repetitions, Replay: true}, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return progression.SkillAward{}, mapDB(err)
+	}
+	var state progression.SkillState
+	err = tx.QueryRowContext(ctx, `SELECT player_id,skill_id,cumulative_xp,proficiency_bps,progression_version,COALESCE(repetition_key,''),repetition_count FROM gridworks.player_skills WHERE player_id=$1 AND skill_id=$2 FOR UPDATE`, event.PlayerID, event.SkillID).Scan(&state.PlayerID, &state.SkillID, &state.CumulativeXP, &state.ProficiencyBPS, &state.ProgressionVersion, &state.RepetitionKey, &state.RepetitionCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		state = progression.SkillState{PlayerID: event.PlayerID, SkillID: event.SkillID, ProgressionVersion: progression.Version}
+	} else if err != nil {
+		return progression.SkillAward{}, mapDB(err)
+	}
+	award, err := progression.ApplySkillEvent(&state, event, false)
+	if err != nil {
+		return progression.SkillAward{}, err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO gridworks.player_skills(player_id,skill_id,cumulative_xp,proficiency_bps,progression_version,last_source_event_id,last_event_time,repetition_key,repetition_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (player_id,skill_id) DO UPDATE SET cumulative_xp=EXCLUDED.cumulative_xp,proficiency_bps=EXCLUDED.proficiency_bps,progression_version=EXCLUDED.progression_version,last_source_event_id=EXCLUDED.last_source_event_id,last_event_time=EXCLUDED.last_event_time,repetition_key=EXCLUDED.repetition_key,repetition_count=EXCLUDED.repetition_count`, state.PlayerID, state.SkillID, state.CumulativeXP, state.ProficiencyBPS, state.ProgressionVersion, event.SourceEventID, event.OccurrenceTime, state.RepetitionKey, state.RepetitionCount)
+	if err != nil {
+		return progression.SkillAward{}, mapDB(err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO gridworks.player_skill_events(source_event_id,player_id,skill_id,activity_kind,base_xp,awarded_xp,request_digest,activity_class,repetition_key,occurrence_time,rules_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, event.SourceEventID, event.PlayerID, event.SkillID, event.ActivityKind, event.BaseXP, award.AwardedXP, requestDigest, event.ActivityClass, event.RepetitionKey, event.OccurrenceTime, event.RulesVersion)
+	if err != nil {
+		return progression.SkillAward{}, mapDB(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return progression.SkillAward{}, err
+	}
+	return award, nil
+}
+
+func (r *Repository) OpenManagerEmployment(ctx context.Context, employmentID, managerID, companyID, role, sourceRef string, effectiveFrom time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	key := "employment.open." + employmentID
+	requestDigest := digest(strings.Join([]string{managerID, companyID, role, sourceRef, effectiveFrom.UTC().Format(time.RFC3339Nano)}, "\x00"))
+	if err := lockIdempotency(ctx, tx, "progression", key); err != nil {
+		return err
+	}
+	var mutationType, storedDigest, resultRef string
+	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.manager_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&mutationType, &storedDigest, &resultRef)
+	if err == nil {
+		if mutationType != "employment.open" || storedDigest != requestDigest {
+			return api.ErrConflict
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return mapDB(err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT manager_id FROM gridworks.managers WHERE manager_id=$1 FOR UPDATE`, managerID).Scan(new(string)); err != nil {
+		return mapDB(err)
+	}
+	var active int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM gridworks.manager_employment_history WHERE manager_id=$1 AND state='active'`, managerID).Scan(&active); err != nil {
+		return mapDB(err)
+	}
+	if active > 0 {
+		return progression.ErrActiveEmployment
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_employment_history(employment_id,manager_id,company_id,role,state,effective_from,source_ref) VALUES($1,$2,$3,$4,'active',$5,$6)`, employmentID, managerID, companyID, role, effectiveFrom, sourceRef); err != nil {
+		return mapDB(err)
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_mutation_receipts(idempotency_key,mutation_type,request_digest,result_ref) VALUES($1,'employment.open',$2,$3)`, key, requestDigest, employmentID); err != nil {
+		return mapDB(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Repository) CloseManagerEmployment(ctx context.Context, employmentID, sourceRef string, effectiveTo time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	key := "employment.close." + employmentID
+	requestDigest := digest(strings.Join([]string{employmentID, sourceRef, effectiveTo.UTC().Format(time.RFC3339Nano)}, "\x00"))
+	if err := lockIdempotency(ctx, tx, "progression", key); err != nil {
+		return err
+	}
+	var mutationType, storedDigest, resultRef string
+	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.manager_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&mutationType, &storedDigest, &resultRef)
+	if err == nil {
+		if mutationType != "employment.close" || storedDigest != requestDigest {
+			return api.ErrConflict
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return mapDB(err)
+	}
+	var managerID string
+	if err := tx.QueryRowContext(ctx, `SELECT manager_id FROM gridworks.manager_employment_history WHERE employment_id=$1 FOR UPDATE`, employmentID).Scan(&managerID); err != nil {
+		return mapDB(err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT manager_id FROM gridworks.managers WHERE manager_id=$1 FOR UPDATE`, managerID).Scan(new(string)); err != nil {
+		return mapDB(err)
+	}
+	var activeAssignments int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM gridworks.manager_facility_assignments WHERE manager_id=$1 AND active`, managerID).Scan(&activeAssignments); err != nil {
+		return mapDB(err)
+	}
+	if activeAssignments > 0 {
+		return progression.ErrActiveAssignment
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE gridworks.manager_employment_history SET state='closed',effective_to=$1 WHERE employment_id=$2 AND state='active'`, effectiveTo, employmentID)
+	if err != nil {
+		return mapDB(err)
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return progression.ErrNoActiveEmployment
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_mutation_receipts(idempotency_key,mutation_type,request_digest,result_ref) VALUES($1,'employment.close',$2,$3)`, key, requestDigest, employmentID); err != nil {
+		return mapDB(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Repository) ApplyManagerProgression(ctx context.Context, event progression.ManagerProgressionEvent) (progression.ManagerProgressionResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return progression.ManagerProgressionResult{}, err
+	}
+	defer tx.Rollback()
+	key := "manager.progression." + event.SourceEventID
+	requestDigest := digest(strings.Join([]string{event.ManagerID, event.ActivityKind, event.SkillID, fmt.Sprint(event.AwardedXP), event.OccurrenceTime.UTC().Format(time.RFC3339Nano), event.RulesVersion}, "\x00"))
+	if err := lockIdempotency(ctx, tx, "progression", key); err != nil {
+		return progression.ManagerProgressionResult{}, err
+	}
+	var mutationType, storedDigest, resultRef string
+	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.manager_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&mutationType, &storedDigest, &resultRef)
+	if err == nil {
+		if mutationType != "manager.progression" || storedDigest != requestDigest {
+			return progression.ManagerProgressionResult{}, api.ErrConflict
+		}
+		var totalXP int64
+		var level int
+		if err := tx.QueryRowContext(ctx, `SELECT total_xp,level FROM gridworks.managers WHERE manager_id=$1`, event.ManagerID).Scan(&totalXP, &level); err != nil {
+			return progression.ManagerProgressionResult{}, mapDB(err)
+		}
+		if err := tx.Commit(); err != nil {
+			return progression.ManagerProgressionResult{}, err
+		}
+		return progression.ManagerProgressionResult{TotalXP: totalXP, Level: level, Replay: true}, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return progression.ManagerProgressionResult{}, mapDB(err)
+	}
+	var state progression.ManagerState
+	if err := tx.QueryRowContext(ctx, `SELECT manager_id,rarity,total_xp,level FROM gridworks.managers WHERE manager_id=$1 FOR UPDATE`, event.ManagerID).Scan(&state.ManagerID, &state.Rarity, &state.TotalXP, &state.Level); err != nil {
+		return progression.ManagerProgressionResult{}, mapDB(err)
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT skill_id,proficiency_bps,potential_bps FROM gridworks.manager_skills WHERE manager_id=$1 FOR UPDATE`, event.ManagerID)
+	if err != nil {
+		return progression.ManagerProgressionResult{}, err
+	}
+	for rows.Next() {
+		var skill progression.ManagerSkillView
+		if err := rows.Scan(&skill.SkillID, &skill.ProficiencyBPS, &skill.PotentialBPS); err != nil {
+			rows.Close()
+			return progression.ManagerProgressionResult{}, err
+		}
+		state.Skills = append(state.Skills, skill)
+	}
+	rows.Close()
+	result, err := progression.ApplyManagerProgression(&state, event, false)
+	if err != nil {
+		return progression.ManagerProgressionResult{}, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE gridworks.managers SET total_xp=$1,level=$2 WHERE manager_id=$3`, state.TotalXP, state.Level, event.ManagerID); err != nil {
+		return progression.ManagerProgressionResult{}, mapDB(err)
+	}
+	if event.SkillID != "" {
+		for _, skill := range state.Skills {
+			if skill.SkillID == event.SkillID {
+				if _, err = tx.ExecContext(ctx, `UPDATE gridworks.manager_skills SET proficiency_bps=$1 WHERE manager_id=$2 AND skill_id=$3`, skill.ProficiencyBPS, event.ManagerID, event.SkillID); err != nil {
+					return progression.ManagerProgressionResult{}, mapDB(err)
+				}
+			}
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_progression_events(source_event_id,manager_id,activity_kind,awarded_xp,skill_id,occurrence_time,rules_version) VALUES($1,$2,$3,$4,$5,$6,$7)`, event.SourceEventID, event.ManagerID, event.ActivityKind, event.AwardedXP, event.SkillID, event.OccurrenceTime, event.RulesVersion); err != nil {
+		return progression.ManagerProgressionResult{}, mapDB(err)
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_mutation_receipts(idempotency_key,mutation_type,request_digest,result_ref) VALUES($1,'manager.progression',$2,$3)`, key, requestDigest, event.ManagerID); err != nil {
+		return progression.ManagerProgressionResult{}, mapDB(err)
+	}
+	if err := tx.Commit(); err != nil {
+		return progression.ManagerProgressionResult{}, err
+	}
+	return result, nil
+}
+
+func (r *Repository) OpenManagerFacilityAssignment(ctx context.Context, assignmentID, managerID, companyID, facilityID, role, sourceRef string, effectiveFrom time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	key := "assignment.open." + assignmentID
+	requestDigest := digest(strings.Join([]string{managerID, companyID, facilityID, role, sourceRef, effectiveFrom.UTC().Format(time.RFC3339Nano)}, "\x00"))
+	if err := lockIdempotency(ctx, tx, "progression", key); err != nil {
+		return err
+	}
+	var mutationType, storedDigest, resultRef string
+	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.manager_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&mutationType, &storedDigest, &resultRef)
+	if err == nil {
+		if mutationType != "assignment.open" || storedDigest != requestDigest {
+			return api.ErrConflict
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return mapDB(err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT manager_id FROM gridworks.managers WHERE manager_id=$1 FOR UPDATE`, managerID).Scan(new(string)); err != nil {
+		return mapDB(err)
+	}
+	var activeEmployer string
+	if err := tx.QueryRowContext(ctx, `SELECT company_id FROM gridworks.manager_employment_history WHERE manager_id=$1 AND state='active'`, managerID).Scan(&activeEmployer); err != nil {
+		return mapDB(err)
+	}
+	if activeEmployer != companyID {
+		return api.ErrForbidden
+	}
+	if role == "primary" {
+		var count int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM gridworks.manager_facility_assignments WHERE manager_id=$1 AND assignment_role='primary' AND active`, managerID).Scan(&count); err != nil {
+			return mapDB(err)
+		}
+		if count > 0 {
+			return api.ErrConflict
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_facility_assignments(assignment_id,manager_id,company_id,facility_id,assignment_role,active,effective_from,source_ref) VALUES($1,$2,$3,$4,$5,true,$6,$7)`, assignmentID, managerID, companyID, facilityID, role, effectiveFrom, sourceRef); err != nil {
+		return mapDB(err)
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_mutation_receipts(idempotency_key,mutation_type,request_digest,result_ref) VALUES($1,'assignment.open',$2,$3)`, key, requestDigest, assignmentID); err != nil {
+		return mapDB(err)
+	}
+	return tx.Commit()
+}
+
+func (r *Repository) CloseManagerFacilityAssignment(ctx context.Context, assignmentID, sourceRef string, effectiveTo time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	key := "assignment.close." + assignmentID
+	requestDigest := digest(strings.Join([]string{assignmentID, sourceRef, effectiveTo.UTC().Format(time.RFC3339Nano)}, "\x00"))
+	if err := lockIdempotency(ctx, tx, "progression", key); err != nil {
+		return err
+	}
+	var mutationType, storedDigest, resultRef string
+	err = tx.QueryRowContext(ctx, `SELECT mutation_type,request_digest,result_ref FROM gridworks.manager_mutation_receipts WHERE idempotency_key=$1 FOR UPDATE`, key).Scan(&mutationType, &storedDigest, &resultRef)
+	if err == nil {
+		if mutationType != "assignment.close" || storedDigest != requestDigest {
+			return api.ErrConflict
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return mapDB(err)
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE gridworks.manager_facility_assignments SET active=false,effective_to=$1 WHERE assignment_id=$2 AND active`, effectiveTo, assignmentID)
+	if err != nil {
+		return mapDB(err)
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return api.ErrNotFound
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_mutation_receipts(idempotency_key,mutation_type,request_digest,result_ref) VALUES($1,'assignment.close',$2,$3)`, key, requestDigest, assignmentID); err != nil {
+		return mapDB(err)
+	}
+	return tx.Commit()
 }

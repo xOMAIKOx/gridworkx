@@ -8,9 +8,10 @@ if data.get("openapi") != "3.1.0": raise SystemExit("WP-009 OpenAPI must be 3.1.
 required = {
     ("GET", "/healthz"), ("GET", "/readyz"), ("GET", "/version"),
     ("POST", "/api/v1/auth/guest"), ("DELETE", "/api/v1/auth/session"),
-    ("GET", "/api/v1/me"), ("PATCH", "/api/v1/me/profile"),
+    ("GET", "/api/v1/me"), ("GET", "/api/v1/me/skills"), ("PATCH", "/api/v1/me/profile"),
     ("GET", "/api/v1/players/{player_id}"), ("POST", "/api/v1/companies"),
-    ("GET", "/api/v1/companies/{company_id}"), ("POST", "/api/v1/company-groups"),
+    ("GET", "/api/v1/companies/{company_id}"), ("GET", "/api/v1/companies/{company_id}/managers"),
+    ("GET", "/api/v1/companies/{company_id}/managers/{manager_id}"), ("POST", "/api/v1/company-groups"),
 }
 actual = {(method.upper(), path) for path, item in data.get("paths", {}).items() for method in item}
 if actual != required: raise SystemExit(f"WP-009 OpenAPI route inventory mismatch: {sorted(actual ^ required)}")
