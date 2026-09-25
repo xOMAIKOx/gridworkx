@@ -11,7 +11,8 @@
     "manager_skills",
     "rarity_policy",
     "traits",
-    "anti_grind"
+    "anti_grind",
+    "manager_progression"
   ],
   "properties": {
     "config_id": {
@@ -147,6 +148,24 @@
         },
         "version": {
           "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "manager_progression": {
+      "type": "object",
+      "required": [
+        "level_xp_per_level",
+        "skill_bps_per_xp"
+      ],
+      "properties": {
+        "level_xp_per_level": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skill_bps_per_xp": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "additionalProperties": false

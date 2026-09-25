@@ -92,3 +92,14 @@ Employment and assignment mutations use durable request-digest receipts, append-
 The Rust WP-004 integration proof now exercises diagnosis confidence: low capability yields lower unresolved confidence while higher capability yields higher confidence, with the same underlying symptom identity and no fabricated evidence.
 
 Trait vectors preserve semantic trade-offs across diagnostic/workload/fatigue/morale dimensions and rarity trait-capacity validation prevents universal dominance from becoming a hidden multiplier.
+
+
+## R3 policy/replay/assignment integrity remediation
+
+R3 makes the shared JSON content the controlling source for Go runtime policy through generated canonical values plus exact metadata/rarity/trait drift tests. The validator proves the exact 12/9 registries, four rarity identities, five trait identities and bounded vectors.
+
+Go trusted progression now rejects zero/unknown activity classes, inapplicable activities and version mismatch; zero-multiplier repetitions short-circuit safely; XP and proficiency arithmetic is checked; failures preserve input state. Manager progression validates rarity/target skill before mutation, uses shared level/skill-gain policy, potential caps and overflow-safe replay behavior.
+
+Player and manager repository mutations use request digests covering all semantic fields, including occurrence time, and same-request replay returns canonical state while changed payloads conflict. Manager progression history records the targeted skill. Employment/assignment records use immutable append-close triggers, employer matching, and employment close is rejected while an active assignment exists.
+
+Focused Go tests cover zero multiplier, overflow, state-version mismatch, manager invalid-skill no-mutation and potential cap. Rust diagnosis tests now prove confidence differences through `FailureCommand::Diagnose` while preserving symptom identity.

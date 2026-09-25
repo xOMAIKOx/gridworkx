@@ -74,6 +74,16 @@ validate("https://gridworks.example/schema/fault-definitions.schema.json", fault
 validate("https://gridworks.example/schema/material-state.schema.json", { resources: materialDefinitions.resources, recipes: materialDefinitions.recipes, inventories: [] }, "material definitions");
 validate("https://gridworks.example/schema/content-manifest.schema.json", contentManifest, "content manifest");
 validate("https://gridworks.example/schema/skills-manager-content.schema.json", skillsManagerDefinitions, "skills/manager definitions");
+const expectedPlayerSkills = ["skill.mechanical", "skill.electrical", "skill.process_engineering", "skill.agriculture", "skill.mining", "skill.energy", "skill.water", "skill.logistics", "skill.construction", "skill.commerce", "skill.finance", "skill.management"];
+const expectedManagerSkills = ["manager_skill.operations", "manager_skill.technical", "manager_skill.maintenance", "manager_skill.safety", "manager_skill.leadership", "manager_skill.logistics", "manager_skill.energy_efficiency", "manager_skill.crisis_response", "manager_skill.mentoring"];
+const expectedTraits = ["trait.aggressive_operator", "trait.maintenance_first", "trait.cost_cutter", "trait.mentor", "trait.crisis_specialist"];
+if (skillsManagerDefinitions.player_skills.map((skill) => skill.skill_id).join("|") !== expectedPlayerSkills.join("|")) throw new Error("skills/manager content player skill registry drift");
+if (new Set(skillsManagerDefinitions.player_skills.map((skill) => skill.skill_id)).size !== expectedPlayerSkills.length) throw new Error("skills/manager content duplicate player skill");
+if (skillsManagerDefinitions.manager_skills.join("|") !== expectedManagerSkills.join("|")) throw new Error("skills/manager content manager skill registry drift");
+if (new Set(skillsManagerDefinitions.manager_skills).size !== expectedManagerSkills.length) throw new Error("skills/manager content duplicate manager skill");
+if (Object.keys(skillsManagerDefinitions.rarity_policy).sort().join("|") !== ["Bronze", "Gold", "Platinum", "Silver"].join("|")) throw new Error("skills/manager content rarity registry drift");
+if (skillsManagerDefinitions.traits.map((trait) => trait.trait_id).join("|") !== expectedTraits.join("|")) throw new Error("skills/manager content trait registry drift");
+if (new Set(skillsManagerDefinitions.traits.map((trait) => trait.trait_id)).size !== expectedTraits.length) throw new Error("skills/manager content duplicate trait");
 assertUnique(domainCatalog.domains.map((domain) => domain.domain_id), "domain catalog");
 assertUnique(contentManifest.bundles.map((bundle) => bundle.bundle_id), "content manifest");
 

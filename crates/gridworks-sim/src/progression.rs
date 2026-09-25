@@ -9,6 +9,7 @@ const SHARED_CONTENT: &str = include_str!("../../../packages/content/config/skil
 #[derive(Debug, Clone, Deserialize)]
 struct SharedContent {
     progression_version: String,
+    manager_progression: ManagerProgressionPolicy,
     player_skills: Vec<SkillDefinition>,
     manager_skills: Vec<String>,
     rarity_policy: BTreeMap<String, RarityPolicy>,
@@ -262,7 +263,8 @@ pub fn manager_potential_cap(
         .ok_or(ProgressionError::InvalidVersion)
 }
 pub fn manager_level_from_xp(xp: u64) -> u32 {
-    ((xp / 1000) as u32).saturating_add(1)
+    let policy = shared_content().manager_progression;
+    (xp / policy.level_xp_per_level.max(1)).min(u64::from(u32::MAX) - 1) as u32 + 1
 }
 pub fn cap_manager_skill(
     manager: &mut ManagerState,

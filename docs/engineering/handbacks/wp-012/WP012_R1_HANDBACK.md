@@ -1,9 +1,9 @@
 ENGINEERING HANDBACK
 
-Work package: WP-012 R2 remediation of R1
+Work package: WP-012 R3 remediation of R2
 Work order: `docs/work-orders/WP-012_SKILLS_MANAGER_DOMAIN.md`
 Directive: `docs/engineering/directives/WP-012_R1_SKILLS_MANAGER_DOMAIN.md`
-Directive commit: `ac980875ee35ee2ca513a11a5998b2276293f453`
+Directive commit: `15ee85a46f311273ac4ff86d42c3ed5a4750e28b`
 Execution agent: Devin
 Worker model: GPT-5.6 Luna
 Worker effort: XHigh
@@ -86,3 +86,15 @@ Final state: READY FOR SOL/PRO REVIEW
 - R2-08: focused drift, overflow, replay, manager-cap, repository, API and SQL-integrity tests are included.
 
 Live PostgreSQL 18 remains `BLOCKED_DEPENDENCY` because no authorized native PG18 environment was available; repository-local migration and sqlmock evidence are not represented as live execution. Recruitment/WP-013 and all environment work remain untouched.
+
+
+## R3 remediation closure
+
+- R3-01: shared JSON content controls Go generated values; exact metadata/registry/rarity/trait drift validation is present.
+- R3-02: Go progression uses generated policy, rejects invalid activity/version, handles zero multipliers, checks arithmetic and preserves state on errors.
+- R3-03: player/manager digests cover semantic payloads including occurrence time; replay returns canonical state and changed payloads conflict; manager event history stores skill ID.
+- R3-04: manager progression uses shared level/skill-gain policy and validates rarity/target skill before mutation with potential/overflow caps.
+- R3-05: employment/assignment lifecycle includes immutable append-close triggers, active-employer matching and assignment-aware employment close prevention.
+- R3-06: focused domain, drift, migration and repository/API tests are present; exact-head CI is authoritative.
+
+R3 implementation commits are the remediation changes after `d3309a4cdbd8393142278d7a5d25176190ac06c4`; the final exact commit and CI receipts are recorded by the canonical GitHub pointers.

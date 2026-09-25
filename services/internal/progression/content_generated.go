@@ -13,3 +13,31 @@ var SharedTraitEffects = map[string]map[string]int{"trait.aggressive_operator": 
 var SharedTrivialMultipliers = []int64{10000, 5000, 2500, 0}
 
 const SharedMeaningfulMultiplier int64 = 10000
+const SharedManagerLevelXP int64 = 1000
+const SharedManagerSkillBPSPerXP int64 = 1
+
+type SharedPlayerSkillMetadata struct {
+	LabelKey         string
+	ActivityClasses  []string
+	ProgressionCurve string
+	RulesVersion     string
+}
+
+var SharedPlayerSkillMetadataByID = map[string]SharedPlayerSkillMetadata{
+	"skill.mechanical":          {"label.skill.mechanical", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.electrical":          {"label.skill.electrical", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.process_engineering": {"label.skill.process_engineering", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.agriculture":         {"label.skill.agriculture", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.mining":              {"label.skill.mining", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.energy":              {"label.skill.energy", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.water":               {"label.skill.water", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.logistics":           {"label.skill.logistics", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.construction":        {"label.skill.construction", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.commerce":            {"label.skill.commerce", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.finance":             {"label.skill.finance", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+	"skill.management":          {"label.skill.management", []string{"diagnosis", "repair", "production"}, "curve.linear-capped-v1", SharedProgressionVersion},
+}
+var SharedManagerProgression = struct {
+	LevelXP       int64
+	SkillBPSPerXP int64
+}{1000, 1}

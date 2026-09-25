@@ -13,6 +13,7 @@ var (
 	ErrNoActiveEmployment = errors.New("manager has no active employment")
 	ErrUnknownActivity    = errors.New("progression activity is not applicable")
 	ErrOverflow           = errors.New("progression arithmetic overflow")
+	ErrVersionMismatch    = errors.New("progression version mismatch")
 )
 
 type ActivityClass string
@@ -43,11 +44,12 @@ type SkillState struct {
 	RepetitionCount    int
 }
 type ManagerState struct {
-	ManagerID string
-	Rarity    string
-	TotalXP   int64
-	Level     int
-	Skills    []ManagerSkillView
+	ManagerID          string
+	Rarity             string
+	TotalXP            int64
+	Level              int
+	Skills             []ManagerSkillView
+	ProgressionVersion string
 }
 
 type SkillAward struct {
@@ -61,8 +63,11 @@ type SkillAward struct {
 var PlayerSkillIDs = SharedPlayerSkills
 
 func ApplySkillEvent(state *SkillState, event SkillEvent, duplicate bool) (SkillAward, error) {
-	if state.PlayerID != event.PlayerID || state.SkillID != event.SkillID || event.BaseXP < 0 || event.SourceEventID == "" || event.RepetitionKey == "" || event.RulesVersion != Version {
+	if state.PlayerID != event.PlayerID || state.SkillID != event.SkillID || event.BaseXP < 0 || event.SourceEventID == "" || event.RepetitionKey == "" {
 		return SkillAward{}, ErrInvalidEvent
+	}
+	if event.RulesVersion != Version || (state.ProgressionVersion != "" && state.ProgressionVersion != Version) {
+		return SkillAward{}, ErrVersionMismatch
 	}
 	activityClasses, ok := PlayerSkillIDs[event.SkillID]
 	if !ok {
@@ -81,14 +86,19 @@ func ApplySkillEvent(state *SkillState, event SkillEvent, duplicate bool) (Skill
 	if state.RepetitionKey == event.RepetitionKey {
 		count = state.RepetitionCount + 1
 	}
-	multiplier := int64(10000)
+	multiplier := SharedMeaningfulMultiplier
 	if event.ActivityClass == ActivityTrivial {
-		multipliers := []int64{10000, 5000, 2500, 0}
-		if count <= len(multipliers) {
-			multiplier = multipliers[count-1]
+		if count <= len(SharedTrivialMultipliers) {
+			multiplier = SharedTrivialMultipliers[count-1]
 		} else {
 			multiplier = 0
 		}
+	}
+	if multiplier == 0 {
+		state.ProgressionVersion = Version
+		state.RepetitionKey = event.RepetitionKey
+		state.RepetitionCount = count
+		return SkillAward{AwardedXP: 0, CumulativeXP: state.CumulativeXP, ProficiencyBPS: state.ProficiencyBPS, RepetitionCount: count}, nil
 	}
 	if event.BaseXP > (1<<63-1)/multiplier {
 		return SkillAward{}, ErrOverflow
@@ -98,12 +108,17 @@ func ApplySkillEvent(state *SkillState, event SkillEvent, duplicate bool) (Skill
 		return SkillAward{}, ErrOverflow
 	}
 	state.CumulativeXP += awarded
-	state.ProficiencyBPS = int(minInt64(state.CumulativeXP*10, 10000))
+	if state.CumulativeXP >= 1000 {
+		state.ProficiencyBPS = 10000
+	} else {
+		state.ProficiencyBPS = int(state.CumulativeXP * 10)
+	}
 	state.ProgressionVersion = Version
 	state.RepetitionKey = event.RepetitionKey
 	state.RepetitionCount = count
 	return SkillAward{AwardedXP: awarded, CumulativeXP: state.CumulativeXP, ProficiencyBPS: state.ProficiencyBPS, RepetitionCount: count}, nil
 }
+
 func minInt64(a, b int64) int64 {
 	if a < b {
 		return a
@@ -136,30 +151,56 @@ type ManagerProgressionResult struct {
 }
 
 func ApplyManagerProgression(state *ManagerState, event ManagerProgressionEvent, duplicate bool) (ManagerProgressionResult, error) {
-	if state.ManagerID != event.ManagerID || event.SourceEventID == "" || event.RulesVersion != Version || event.AwardedXP < 0 {
+	if state.ManagerID != event.ManagerID || event.SourceEventID == "" || event.AwardedXP < 0 {
+		return ManagerProgressionResult{}, ErrInvalidEvent
+	}
+	if event.RulesVersion != Version || (state.ProgressionVersion != "" && state.ProgressionVersion != Version) {
+		return ManagerProgressionResult{}, ErrVersionMismatch
+	}
+	if _, ok := SharedRarityPotential[state.Rarity]; !ok {
 		return ManagerProgressionResult{}, ErrInvalidEvent
 	}
 	if duplicate {
 		return ManagerProgressionResult{TotalXP: state.TotalXP, Level: state.Level, Replay: true}, nil
 	}
-	if event.AwardedXP > (1<<63-1)-state.TotalXP {
-		return ManagerProgressionResult{}, ErrOverflow
-	}
-	state.TotalXP += event.AwardedXP
-	state.Level = int(state.TotalXP/1000 + 1)
+	var target *ManagerSkillView
 	if event.SkillID != "" {
 		if !contains(SharedManagerSkills, event.SkillID) {
 			return ManagerProgressionResult{}, ErrUnknownSkill
 		}
-		cap := SharedRarityPotential[string(state.Rarity)]
 		for index := range state.Skills {
 			if state.Skills[index].SkillID == event.SkillID {
-				state.Skills[index].ProficiencyBPS = minInt(state.Skills[index].ProficiencyBPS+int(event.AwardedXP), minInt(state.Skills[index].PotentialBPS, cap))
+				target = &state.Skills[index]
+				break
 			}
 		}
+		if target == nil {
+			return ManagerProgressionResult{}, ErrInvalidEvent
+		}
+	}
+	if event.AwardedXP > (1<<63-1)-state.TotalXP {
+		return ManagerProgressionResult{}, ErrOverflow
+	}
+	newTotal := state.TotalXP + event.AwardedXP
+	newLevel := int(newTotal/SharedManagerProgression.LevelXP + 1)
+	var newSkill int
+	if target != nil {
+		if event.AwardedXP > (1<<63-1)/SharedManagerProgression.SkillBPSPerXP {
+			return ManagerProgressionResult{}, ErrOverflow
+		}
+		newSkill = target.ProficiencyBPS + int(event.AwardedXP*SharedManagerProgression.SkillBPSPerXP)
+		if newSkill > target.PotentialBPS {
+			newSkill = target.PotentialBPS
+		}
+	}
+	state.TotalXP = newTotal
+	state.Level = newLevel
+	if target != nil {
+		target.ProficiencyBPS = newSkill
 	}
 	return ManagerProgressionResult{TotalXP: state.TotalXP, Level: state.Level}, nil
 }
+
 func minInt(a, b int) int {
 	if a < b {
 		return a

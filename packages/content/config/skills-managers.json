@@ -212,5 +212,9 @@
     ],
     "meaningful_multiplier_bps": 10000,
     "version": "progression-0.1.0"
+  },
+  "manager_progression": {
+    "level_xp_per_level": 1000,
+    "skill_bps_per_xp": 1
   }
 }

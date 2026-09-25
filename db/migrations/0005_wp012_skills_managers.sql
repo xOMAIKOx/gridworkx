@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS gridworks.player_skill_events (
     activity_kind text NOT NULL,
     base_xp bigint NOT NULL CHECK (base_xp >= 0),
     awarded_xp bigint NOT NULL CHECK (awarded_xp >= 0),
+    request_digest char(64) NOT NULL CHECK (request_digest ~ '^[0-9a-f]{64}$'),
     activity_class text NOT NULL CHECK (activity_class IN ('trivial', 'meaningful')),
     repetition_key text NOT NULL,
     occurrence_time timestamptz NOT NULL,
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS gridworks.manager_progression_events (
     manager_id text NOT NULL REFERENCES gridworks.managers(manager_id) ON DELETE RESTRICT,
     activity_kind text NOT NULL,
     awarded_xp bigint NOT NULL CHECK (awarded_xp >= 0),
+    skill_id text NOT NULL,
     occurrence_time timestamptz NOT NULL,
     rules_version text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -193,5 +195,17 @@ END
 $$;
 DROP TRIGGER IF EXISTS manager_assignment_employer_guard ON gridworks.manager_facility_assignments;
 CREATE TRIGGER manager_assignment_employer_guard BEFORE INSERT OR UPDATE ON gridworks.manager_facility_assignments FOR EACH ROW EXECUTE FUNCTION gridworks.validate_wp012_assignment_employer();
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_wp012_employment_close_with_assignment()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF OLD.state = 'active' AND NEW.state = 'closed' AND EXISTS (SELECT 1 FROM gridworks.manager_facility_assignments WHERE manager_id=OLD.manager_id AND active) THEN
+        RAISE EXCEPTION 'employment cannot close while manager has active facility assignment';
+    END IF;
+    RETURN NEW;
+END
+$$;
+DROP TRIGGER IF EXISTS manager_employment_assignment_guard ON gridworks.manager_employment_history;
+CREATE TRIGGER manager_employment_assignment_guard BEFORE UPDATE ON gridworks.manager_employment_history FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_wp012_employment_close_with_assignment();
 
 COMMIT;

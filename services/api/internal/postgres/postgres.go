@@ -557,13 +557,23 @@ func (r *Repository) ApplyPlayerSkillEvent(ctx context.Context, event progressio
 	if err := lockIdempotency(ctx, tx, "progression", event.SourceEventID); err != nil {
 		return progression.SkillAward{}, err
 	}
+	requestDigest := digest(strings.Join([]string{event.PlayerID, event.SkillID, event.ActivityKind, fmt.Sprint(event.BaseXP), string(event.ActivityClass), event.RepetitionKey, event.OccurrenceTime.UTC().Format(time.RFC3339Nano), event.RulesVersion}, "\x00"))
 	var existingAward int64
-	err = tx.QueryRowContext(ctx, `SELECT awarded_xp FROM gridworks.player_skill_events WHERE source_event_id=$1 FOR UPDATE`, event.SourceEventID).Scan(&existingAward)
+	var storedDigest string
+	err = tx.QueryRowContext(ctx, `SELECT awarded_xp,request_digest FROM gridworks.player_skill_events WHERE source_event_id=$1 FOR UPDATE`, event.SourceEventID).Scan(&existingAward, &storedDigest)
 	if err == nil {
+		if storedDigest != requestDigest {
+			return progression.SkillAward{}, api.ErrConflict
+		}
+		var cumulative int64
+		var proficiency, repetitions int
+		if err := tx.QueryRowContext(ctx, `SELECT cumulative_xp,proficiency_bps,repetition_count FROM gridworks.player_skills WHERE player_id=$1 AND skill_id=$2`, event.PlayerID, event.SkillID).Scan(&cumulative, &proficiency, &repetitions); err != nil {
+			return progression.SkillAward{}, mapDB(err)
+		}
 		if err := tx.Commit(); err != nil {
 			return progression.SkillAward{}, err
 		}
-		return progression.SkillAward{AwardedXP: 0, Replay: true}, nil
+		return progression.SkillAward{AwardedXP: 0, CumulativeXP: cumulative, ProficiencyBPS: proficiency, RepetitionCount: repetitions, Replay: true}, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return progression.SkillAward{}, mapDB(err)
@@ -583,7 +593,7 @@ func (r *Repository) ApplyPlayerSkillEvent(ctx context.Context, event progressio
 	if err != nil {
 		return progression.SkillAward{}, mapDB(err)
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO gridworks.player_skill_events(source_event_id,player_id,skill_id,activity_kind,base_xp,awarded_xp,activity_class,repetition_key,occurrence_time,rules_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, event.SourceEventID, event.PlayerID, event.SkillID, event.ActivityKind, event.BaseXP, award.AwardedXP, event.ActivityClass, event.RepetitionKey, event.OccurrenceTime, event.RulesVersion)
+	_, err = tx.ExecContext(ctx, `INSERT INTO gridworks.player_skill_events(source_event_id,player_id,skill_id,activity_kind,base_xp,awarded_xp,request_digest,activity_class,repetition_key,occurrence_time,rules_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, event.SourceEventID, event.PlayerID, event.SkillID, event.ActivityKind, event.BaseXP, award.AwardedXP, requestDigest, event.ActivityClass, event.RepetitionKey, event.OccurrenceTime, event.RulesVersion)
 	if err != nil {
 		return progression.SkillAward{}, mapDB(err)
 	}
@@ -695,7 +705,7 @@ func (r *Repository) ApplyManagerProgression(ctx context.Context, event progress
 	}
 	defer tx.Rollback()
 	key := "manager.progression." + event.SourceEventID
-	requestDigest := digest(strings.Join([]string{event.ManagerID, event.ActivityKind, event.SkillID, fmt.Sprint(event.AwardedXP), event.RulesVersion}, "\x00"))
+	requestDigest := digest(strings.Join([]string{event.ManagerID, event.ActivityKind, event.SkillID, fmt.Sprint(event.AwardedXP), event.OccurrenceTime.UTC().Format(time.RFC3339Nano), event.RulesVersion}, "\x00"))
 	if err := lockIdempotency(ctx, tx, "progression", key); err != nil {
 		return progression.ManagerProgressionResult{}, err
 	}
@@ -705,10 +715,15 @@ func (r *Repository) ApplyManagerProgression(ctx context.Context, event progress
 		if mutationType != "manager.progression" || storedDigest != requestDigest {
 			return progression.ManagerProgressionResult{}, api.ErrConflict
 		}
+		var totalXP int64
+		var level int
+		if err := tx.QueryRowContext(ctx, `SELECT total_xp,level FROM gridworks.managers WHERE manager_id=$1`, event.ManagerID).Scan(&totalXP, &level); err != nil {
+			return progression.ManagerProgressionResult{}, mapDB(err)
+		}
 		if err := tx.Commit(); err != nil {
 			return progression.ManagerProgressionResult{}, err
 		}
-		return progression.ManagerProgressionResult{Replay: true}, nil
+		return progression.ManagerProgressionResult{TotalXP: totalXP, Level: level, Replay: true}, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return progression.ManagerProgressionResult{}, mapDB(err)
@@ -746,7 +761,7 @@ func (r *Repository) ApplyManagerProgression(ctx context.Context, event progress
 			}
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_progression_events(source_event_id,manager_id,activity_kind,awarded_xp,occurrence_time,rules_version) VALUES($1,$2,$3,$4,$5,$6)`, event.SourceEventID, event.ManagerID, event.ActivityKind, event.AwardedXP, event.OccurrenceTime, event.RulesVersion); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_progression_events(source_event_id,manager_id,activity_kind,awarded_xp,skill_id,occurrence_time,rules_version) VALUES($1,$2,$3,$4,$5,$6,$7)`, event.SourceEventID, event.ManagerID, event.ActivityKind, event.AwardedXP, event.SkillID, event.OccurrenceTime, event.RulesVersion); err != nil {
 		return progression.ManagerProgressionResult{}, mapDB(err)
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO gridworks.manager_mutation_receipts(idempotency_key,mutation_type,request_digest,result_ref) VALUES($1,'manager.progression',$2,$3)`, key, requestDigest, event.ManagerID); err != nil {
