@@ -267,6 +267,12 @@ pub fn manager_potential_cap(
         .map(|value| value.potential_bps)
         .ok_or(ProgressionError::InvalidVersion)
 }
+pub fn manager_skill_gain_from_xp(xp: u64) -> u16 {
+    let policy = shared_content().manager_progression;
+    xp.saturating_mul(policy.skill_bps_per_xp)
+        .min(u64::from(MAX_BPS)) as u16
+}
+
 pub fn manager_level_from_xp(xp: u64) -> u32 {
     let policy = shared_content().manager_progression;
     (xp / policy.level_xp_per_level.max(1)).min(u64::from(u32::MAX) - 1) as u32 + 1
