@@ -1,18 +1,21 @@
 ENGINEERING HANDBACK
 
-Work package: WP-012 R3 remediation of R2
+Work package: WP-012 R4 final integrity remediation
 Work order: `docs/work-orders/WP-012_SKILLS_MANAGER_DOMAIN.md`
 Directive: `docs/engineering/directives/WP-012_R1_SKILLS_MANAGER_DOMAIN.md`
-Directive commit: `15ee85a46f311273ac4ff86d42c3ed5a4750e28b`
+Directive: `docs/engineering/directives/WP-012_R4_FINAL_INTEGRITY_REMEDIATION.md`
+Directive commit: `675a1373f484422ba64173572912ffb7c775f59b`
 Execution agent: Devin
 Worker model: GPT-5.6 Luna
 Worker effort: XHigh
 Implementation class: D2 — bounded complex
 
 Repository / branch: `xOMAIKOx/gridworkx` / `engineering/wp-012-skills-managers`
-Exact parent: `466faa05ad24d0dc1af35a1fa3d71a04e8920961`
-R2 implementation commits: current remediation changes after `274287f2b88917f5e7d06edab91e0046c5af7895`; exact list and final HEAD are recorded by the canonical GitHub receipts
-Final HEAD: exact handback commit SHA is recorded by the canonical issue #26 and PR #27 receipts.
+Immediate R4 parent: `9cf624e1a3982eb0f2eeb63a4f60130a136f34b4`
+Original WP-012 parent: `466faa05ad24d0dc1af35a1fa3d71a04e8920961`
+R4 implementation commit: `2ddcf3f4346a800cbfafcb5278f879386ca7fc5a`
+Reviewed R4 implementation HEAD: `2ddcf3f4346a800cbfafcb5278f879386ca7fc5a`.
+Final handback HEAD: this document is committed in the canonical GitHub receipt for the final handback commit.
 Draft PR: https://github.com/xOMAIKOx/gridworkx/pull/27
 
 ## Implemented components
@@ -100,3 +103,18 @@ Live PostgreSQL 18 remains `BLOCKED_DEPENDENCY` because no authorized native PG1
 R3 implementation commits: `378084b`, `2f77e34`, `f0dcc01`.
 R3 final HEAD before this handback update: `f0dcc01d26215433fb5666524d90d0b3967c60a5`.
 Final handback HEAD and final CI receipts are recorded by the canonical GitHub pointers.
+
+
+## R4 closure
+
+- R4-01: PASS — full manager skill-gain arithmetic is checked before mutation; extreme non-zero skill tests reject overflow without state mutation.
+- R4-02: PASS — generated rarity and trait key sets/cardinality/effects are compared exactly against canonical content, in addition to player/manager metadata and progression policy.
+- R4-03: PASS — `manager_mutation_receipts` has an immutable UPDATE/DELETE trigger.
+- R4-04: PASS — employment close and assignment open share manager-row serialization; trusted employment close explicitly rejects active assignments; SQL guards lock the manager identity.
+- R4-05: PASS — direct sqlmock mutation tests cover player replay/conflict, manager progression/history and employment lifecycle rejection; domain boundary tests cover overflow/version/no-mutation.
+- R4-06: PASS — this handback records the R4 directive, immediate parent, implementation HEAD, CI URLs and live-PG status.
+
+R4 verification on the implementation head:
+- Push CI: https://github.com/xOMAIKOx/gridworkx/actions/runs/36117126337
+- PR CI: https://github.com/xOMAIKOx/gridworkx/actions/runs/36117130135
+- Live PostgreSQL 18: `BLOCKED_DEPENDENCY`; no authorized native PG18 environment was available.
