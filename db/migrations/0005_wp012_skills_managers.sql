@@ -187,6 +187,7 @@ CREATE TRIGGER manager_assignment_append_close BEFORE UPDATE ON gridworks.manage
 CREATE OR REPLACE FUNCTION gridworks.validate_wp012_assignment_employer()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+    PERFORM 1 FROM gridworks.managers WHERE manager_id=NEW.manager_id FOR UPDATE;
     IF NOT EXISTS (SELECT 1 FROM gridworks.manager_employment_history WHERE manager_id=NEW.manager_id AND company_id=NEW.company_id AND state='active') THEN
         RAISE EXCEPTION 'assignment company must match active manager employer';
     END IF;
@@ -199,6 +200,7 @@ CREATE TRIGGER manager_assignment_employer_guard BEFORE INSERT OR UPDATE ON grid
 CREATE OR REPLACE FUNCTION gridworks.prevent_wp012_employment_close_with_assignment()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+    PERFORM 1 FROM gridworks.managers WHERE manager_id=OLD.manager_id FOR UPDATE;
     IF OLD.state = 'active' AND NEW.state = 'closed' AND EXISTS (SELECT 1 FROM gridworks.manager_facility_assignments WHERE manager_id=OLD.manager_id AND active) THEN
         RAISE EXCEPTION 'employment cannot close while manager has active facility assignment';
     END IF;
@@ -207,5 +209,10 @@ END
 $$;
 DROP TRIGGER IF EXISTS manager_employment_assignment_guard ON gridworks.manager_employment_history;
 CREATE TRIGGER manager_employment_assignment_guard BEFORE UPDATE ON gridworks.manager_employment_history FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_wp012_employment_close_with_assignment();
+
+CREATE OR REPLACE FUNCTION gridworks.prevent_wp012_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'WP-012 mutation receipts are immutable'; END $$;
+DROP TRIGGER IF EXISTS manager_mutation_receipts_immutable ON gridworks.manager_mutation_receipts;
+CREATE TRIGGER manager_mutation_receipts_immutable BEFORE UPDATE OR DELETE ON gridworks.manager_mutation_receipts FOR EACH ROW EXECUTE FUNCTION gridworks.prevent_wp012_receipt_mutation();
 
 COMMIT;

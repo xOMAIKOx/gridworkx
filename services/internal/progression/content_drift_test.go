@@ -60,10 +60,16 @@ func TestGeneratedProgressionContentMatchesCanonicalFile(t *testing.T) {
 	if !reflect.DeepEqual(canonical.ManagerSkills, SharedManagerSkills) || canonical.ManagerProgression.LevelXP != SharedManagerProgression.LevelXP || canonical.ManagerProgression.SkillBPSPerXP != SharedManagerProgression.SkillBPSPerXP {
 		t.Fatal("manager content drift")
 	}
+	if len(canonical.RarityPolicy) != len(SharedRarityPotential) || len(SharedRarityPolicyKeys()) != len(canonical.RarityPolicy) {
+		t.Fatal("rarity key-set drift")
+	}
 	for rarity, policy := range canonical.RarityPolicy {
 		if SharedRarityPotential[rarity] != policy.PotentialBPS || SharedRarityTraitCapacity[rarity] != policy.TraitCapacity {
 			t.Fatalf("rarity drift: %s", rarity)
 		}
+	}
+	if len(canonical.Traits) != len(SharedTraitEffects) {
+		t.Fatal("trait key-set drift")
 	}
 	for _, trait := range canonical.Traits {
 		if !reflect.DeepEqual(SharedTraitEffects[trait.TraitID], trait.Effects) {
@@ -73,4 +79,12 @@ func TestGeneratedProgressionContentMatchesCanonicalFile(t *testing.T) {
 	if canonical.AntiGrind.Meaningful != SharedMeaningfulMultiplier || !reflect.DeepEqual(canonical.AntiGrind.Trivial, SharedTrivialMultipliers) {
 		t.Fatal("anti-grind drift")
 	}
+}
+
+func SharedRarityPolicyKeys() []string {
+	keys := make([]string, 0, len(SharedRarityPotential))
+	for key := range SharedRarityPotential {
+		keys = append(keys, key)
+	}
+	return keys
 }

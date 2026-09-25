@@ -11,6 +11,7 @@ var (
 	ErrInvalidEvent       = errors.New("progression event is invalid")
 	ErrActiveEmployment   = errors.New("manager already has an active employer")
 	ErrNoActiveEmployment = errors.New("manager has no active employment")
+	ErrActiveAssignment   = errors.New("manager has active facility assignment")
 	ErrUnknownActivity    = errors.New("progression activity is not applicable")
 	ErrOverflow           = errors.New("progression arithmetic overflow")
 	ErrVersionMismatch    = errors.New("progression version mismatch")
@@ -188,10 +189,15 @@ func ApplyManagerProgression(state *ManagerState, event ManagerProgressionEvent,
 		if event.AwardedXP > (1<<63-1)/SharedManagerProgression.SkillBPSPerXP {
 			return ManagerProgressionResult{}, ErrOverflow
 		}
-		newSkill = target.ProficiencyBPS + int(event.AwardedXP*SharedManagerProgression.SkillBPSPerXP)
-		if newSkill > target.PotentialBPS {
-			newSkill = target.PotentialBPS
+		gain := event.AwardedXP * SharedManagerProgression.SkillBPSPerXP
+		if gain > int64(^uint(0)>>1)-int64(target.ProficiencyBPS) {
+			return ManagerProgressionResult{}, ErrOverflow
 		}
+		newSkill64 := gain + int64(target.ProficiencyBPS)
+		if newSkill64 > int64(target.PotentialBPS) {
+			newSkill64 = int64(target.PotentialBPS)
+		}
+		newSkill = int(newSkill64)
 	}
 	state.TotalXP = newTotal
 	state.Level = newLevel

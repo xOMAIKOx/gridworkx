@@ -63,3 +63,12 @@ func TestManagerProgressionRejectsInvalidSkillWithoutMutation(t *testing.T) {
 		t.Fatalf("invalid manager skill mutated state=%+v err=%v", state, err)
 	}
 }
+
+func TestManagerProgressionRejectsSkillGainOverflowWithoutMutation(t *testing.T) {
+	state := ManagerState{ManagerID: "manager.one", Rarity: "Gold", TotalXP: 10, Level: 1, Skills: []ManagerSkillView{{SkillID: "manager_skill.technical", ProficiencyBPS: 100, PotentialBPS: 8500}}}
+	before := state
+	_, err := ApplyManagerProgression(&state, ManagerProgressionEvent{SourceEventID: "manager.extreme", ManagerID: "manager.one", SkillID: "manager_skill.technical", AwardedXP: int64(^uint64(0) >> 1), RulesVersion: Version}, false)
+	if err != ErrOverflow || state.TotalXP != before.TotalXP || state.Skills[0].ProficiencyBPS != before.Skills[0].ProficiencyBPS {
+		t.Fatalf("overflow result state=%+v err=%v", state, err)
+	}
+}
