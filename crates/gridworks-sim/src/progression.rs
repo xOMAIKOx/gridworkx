@@ -22,6 +22,11 @@ struct RarityPolicy {
     trait_capacity: usize,
 }
 #[derive(Debug, Clone, Deserialize)]
+struct ManagerProgressionPolicy {
+    level_xp_per_level: u64,
+    skill_bps_per_xp: u64,
+}
+#[derive(Debug, Clone, Deserialize)]
 struct ContentTrait {
     trait_id: String,
     effects: BTreeMap<String, i16>,
